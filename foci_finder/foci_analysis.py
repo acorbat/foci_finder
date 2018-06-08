@@ -1,9 +1,9 @@
 import numpy as np
 
 from sklearn.cluster import KMeans
-from scipy.ndimage import gaussian_laplace
+from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label
-from skimage.morphology import binary_opening
+from skimage.morphology import binary_opening, binary_dilation, disk
 
 
 def my_KMeans(stack, clusters=2):
@@ -24,3 +24,15 @@ def find_foci(stack):
     labeled = label(classif)  # labelling in 3D
 
     return labeled
+
+
+def find_cell(stack, mask):
+    """Finds cytoplasm not considering pixels in mask."""
+    cell_stack = stack.copy()
+    cell_stack = gaussian_filter(cell_stack, [1, 2, 2])
+    dil_mask = np.asarray([binary_dilation(this, selem=disk(2)) for this in mask]) # todo: this should be outside
+    cell_stack[dil_mask] = np.nan
+
+    cell_classif = my_KMeans(cell_stack)
+    cell_classif[np.isnan(cell_classif)] = 0
+    return cell_classif.astype(bool)
