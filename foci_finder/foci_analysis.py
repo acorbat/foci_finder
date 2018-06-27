@@ -17,14 +17,18 @@ def my_KMeans(stack, clusters=2):
     return vals.reshape(stack.shape)
 
 
-def find_foci(stack):
+def find_foci(stack, LoG_size=[2, 2, 2]):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
-    filtered = gaussian_laplace(stack, [2, 2, 2], mode='nearest')  # Filter image with LoG (correlates with blobs)
+    filtered = gaussian_laplace(stack, LoG_size, mode='nearest')  # Filter image with LoG (correlates with blobs)
     classif = my_KMeans(filtered)  # all pixels are handled as list
+    classif = np.concatenate([np.zeros((LoG_size[0],) + stack.shape[1:]),
+                              classif,
+                              np.zeros((LoG_size[0],) + stack.shape[1:])]
+                             )  # add zeros in case cell is close to upper or lower limit
     classif = binary_opening(classif)  # maybe it's unnecessary or a hyper parameter
+    classif = classif[LoG_size[0]:-LoG_size[0]]  # Delete added image.
     labeled = label(classif)  # labelling in 3D
 
-    # TODO: if last stack has foci, opening deletes them. Should add a zeros stack above and below.
     return labeled
 
 

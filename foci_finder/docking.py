@@ -17,10 +17,10 @@ def randomize_foci_positions(foci_df, cell_coords):
     return random_foci
 
 
-def reconstruct_label_from_df(df, shape):
+def reconstruct_label_from_df(df, shape, extra_stack=5):
     """Takes a DataFrame and creates a labeled imaged of shape with the coordinates in df.coords"""
     rec = np.zeros(shape)
-    rec = np.concatenate([rec, np.zeros((4,) + rec.shape[1:])])
+    rec = np.concatenate([rec, np.zeros((extra_stack,) + rec.shape[1:])])
     for i in df.index:
         rec[tuple(df.coords[i].T)] = df.label[i]
-    return rec[:-4]
+    return rec[:-extra_stack]
