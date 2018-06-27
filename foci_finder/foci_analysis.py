@@ -1,8 +1,9 @@
 import numpy as np
+import pandas as pd
 
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
-from skimage.measure import label
+from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_dilation, disk
 
 
@@ -25,6 +26,13 @@ def find_foci(stack):
 
     # TODO: if last stack has foci, opening deletes them. Should add a zeros stack above and below.
     return labeled
+
+
+def label_to_df(labeled, cols=['label', 'centroid', 'coords']):
+    """Returns a DataFrame where each row is a labeled object and each column in cols is the regionprop to be saved."""
+    regions = regionprops(labeled)
+    this_focus = {col: [region[col] for region in regions] for col in cols}
+    return pd.DataFrame.from_dict(this_focus)
 
 
 def find_cell(stack, mask):
