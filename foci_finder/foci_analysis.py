@@ -23,6 +23,7 @@ def find_foci(stack):
     classif = binary_opening(classif)  # maybe it's unnecessary or a hyper parameter
     labeled = label(classif)  # labelling in 3D
 
+    # TODO: if last stack has foci, opening deletes them. Should add a zeros stack above and below.
     return labeled
 
 
