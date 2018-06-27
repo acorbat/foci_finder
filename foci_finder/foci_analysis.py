@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label, regionprops
-from skimage.morphology import binary_opening, binary_dilation, disk
+from skimage.morphology import binary_opening, binary_dilation, remove_small_objects, disk
 
 
 def my_KMeans(stack, clusters=2):
@@ -12,9 +12,20 @@ def my_KMeans(stack, clusters=2):
     classification"""
     vals = stack.flatten().reshape(1, -1).T
     real_inds = np.isfinite(vals)
-    classif = KMeans(n_clusters=clusters).fit_predict(vals[real_inds][:, np.newaxis])
-    vals[real_inds] = classif
-    return vals.reshape(stack.shape)
+    real_vals = vals[real_inds]
+    classif_finite = KMeans(n_clusters=clusters).fit_predict(real_vals[:, np.newaxis])
+
+    # Check if maximum of intensity is highest class
+    max_intensity_label = classif_finite[np.where(real_vals == real_vals.max())[0]]
+    min_intensity_label = classif_finite[np.where(real_vals == real_vals.min())[0]]
+    if not classif_finite.max() == max_intensity_label:
+        classif_finite[classif_finite == max_intensity_label] = clusters
+        classif_finite[classif_finite == min_intensity_label] = max_intensity_label
+        classif_finite[classif_finite == clusters] = min_intensity_label
+
+    classif = np.zeros(vals.shape)  # Nans are turned to zeros
+    classif[real_inds] = classif_finite  # result from classification is added here
+    return classif.reshape(stack.shape)
 
 
 def find_foci(stack, LoG_size=[2, 2, 2]):
@@ -49,3 +60,24 @@ def find_cell(stack, mask):
     cell_classif = my_KMeans(cell_stack)
     cell_classif[np.isnan(cell_classif)] = 0
     return cell_classif.astype(bool)
+
+
+def find_mito(stack, cell_mask, foci_mask):
+    """Finds mitochondrias in stack in the segmented cell plus foci."""
+    # Create mask of foci and cell to know where to look for mitochondria
+    cell_mask = np.ma.array(cell_mask)
+    foci_mask = np.ma.array(foci_mask)
+    mask = np.ma.array(np.ones(stack.shape), mask=(cell_mask + foci_mask))
+    mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
+    mito_cell_stack = stack.copy()
+    mito_cell_stack[~mask] = np.nan
+
+    # Actually classify pixels
+    mito_classif = my_KMeans(mito_cell_stack)
+
+    mito_classif[np.isnan(mito_classif)] = 0
+    mito_classif = mito_classif.astype(bool)
+    mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=3)
+    mito_classif = np.asarray([binary_dilation(this, selem=disk(2)) for this in mito_classif])
+
+    return mito_classif
