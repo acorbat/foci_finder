@@ -16,8 +16,8 @@ def my_KMeans(stack, clusters=2):
     classif_finite = KMeans(n_clusters=clusters).fit_predict(real_vals[:, np.newaxis])
 
     # Check if maximum of intensity is highest class
-    max_intensity_label = classif_finite[np.where(real_vals == real_vals.max())[0]]
-    min_intensity_label = classif_finite[np.where(real_vals == real_vals.min())[0]]
+    max_intensity_label = classif_finite[np.where(real_vals == real_vals.max())[0][0]]
+    min_intensity_label = classif_finite[np.where(real_vals == real_vals.min())[0][0]]
     if not classif_finite.max() == max_intensity_label:
         classif_finite[classif_finite == max_intensity_label] = clusters
         classif_finite[classif_finite == min_intensity_label] = max_intensity_label
@@ -30,7 +30,7 @@ def my_KMeans(stack, clusters=2):
 
 def find_foci(stack, LoG_size=[2, 2, 2]):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
-    filtered = gaussian_laplace(stack, LoG_size, mode='nearest')  # Filter image with LoG (correlates with blobs)
+    filtered = -1 * gaussian_laplace(stack, LoG_size, mode='nearest')  # Filter image with LoG (correlates with blobs)
     classif = my_KMeans(filtered)  # all pixels are handled as list
     classif = np.concatenate([np.zeros((LoG_size[0],) + stack.shape[1:]),
                               classif,
