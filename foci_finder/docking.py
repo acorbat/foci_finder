@@ -83,17 +83,17 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
         # Todo: Test this function
         n_focis = 0
         n_focis_sup = 0
-        for region in regionprops(foci_labeled):
+        for region in regionprops(foci_labeled, intensity_image=mito_segm):
             n_focis += 1
             n_focis_sup += region.max_intensity
 
-        return n_focis/n_focis_sup
+        return n_focis_sup/n_focis
 
     else:
         raise LookupError
 
 
-def evaluate_superposition(foci_stack, mito_stack):
+def evaluate_superposition(foci_stack, mito_stack, N=500):
     # Find foci, cell and mitochondrias
     foci_labeled = fa.find_foci(foci_stack)
     cell_segm = fa.find_cell(foci_stack, foci_labeled > 0)
@@ -101,5 +101,20 @@ def evaluate_superposition(foci_stack, mito_stack):
 
     # calculate pixel superposition
     exp_pix_sup = calculate_superposition(foci_labeled, mito_segm)
+    exp_foc_sup = calculate_superposition(foci_labeled, mito_segm, 'label')
 
     # randomize N times foci location to estimate random superposition percentage
+    superpositions = {'pixel': [], 'label': []}
+    for i in range(N):
+        print(i)
+        new_focis = rando(foci_labeled, cell_segm)
+        for key in superpositions.keys():
+            superpositions[key].append(calculate_superposition(new_focis, mito_segm, how=key))
+
+    res = {'n_foci': foci_labeled.max(),
+           'experimental_pixel_superposition': exp_pix_sup,
+           'experimental_foci_superposition': exp_foc_sup,
+           'randomized_pixel_superposition': superpositions['pixel'],
+           'randomized_foci_superposition': superpositions['label']}
+
+    return res
