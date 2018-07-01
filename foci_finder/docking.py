@@ -1,7 +1,10 @@
+import multiprocessing
+
+import pandas as pd
 import numpy as np
 import numba as nb
 
-from skimage.measure import regionprops
+from skimage.measure import label, regionprops
 
 from foci_finder import foci_analysis as fa
 
@@ -93,6 +96,21 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
         raise LookupError
 
 
+def randomize_and_calculate(params):
+    i, foci_labeled, cell_segm, mito_segm = params
+    new_focis = rando(foci_labeled, cell_segm)
+    new_focis = label(new_focis)
+
+    superpositions = [calculate_superposition(new_focis, mito_segm, how=key) for key in ['pixel', 'label']]
+
+    return i, superpositions
+
+
+def my_iterator(N, foci_labeled, cell_segm, mito_segm):
+    for i in range(N):
+        yield i, foci_labeled, cell_segm, mito_segm
+
+
 def evaluate_superposition(foci_stack, mito_stack, N=500):
     # Find foci, cell and mitochondrias
     foci_labeled = fa.find_foci(foci_stack)
@@ -104,17 +122,22 @@ def evaluate_superposition(foci_stack, mito_stack, N=500):
     exp_foc_sup = calculate_superposition(foci_labeled, mito_segm, 'label')
 
     # randomize N times foci location to estimate random superposition percentage
-    superpositions = {'pixel': [], 'label': []}
-    for i in range(N):
-        print(i)
-        new_focis = rando(foci_labeled, cell_segm)
-        for key in superpositions.keys():
-            superpositions[key].append(calculate_superposition(new_focis, mito_segm, how=key))
+    output = dict()
+    with multiprocessing.Pool(12) as p:
+        for i, superpositions in p.imap_unordered(randomize_and_calculate, my_iterator(N, foci_labeled, cell_segm, mito_segm)):
+            print(i)
+            output[i] = superpositions
 
-    res = {'n_foci': foci_labeled.max(),
-           'experimental_pixel_superposition': exp_pix_sup,
-           'experimental_foci_superposition': exp_foc_sup,
-           'randomized_pixel_superposition': superpositions['pixel'],
-           'randomized_foci_superposition': superpositions['label']}
+        superpositions = {'pixel': [], 'label': []}
+        for vals in output.values():
+            for j, key in enumerate(['pixel', 'label']):
+                superpositions[key].append(vals[j])
+
+        res = {'n_foci': [foci_labeled.max()],
+               'experimental_pixel_superposition': [exp_pix_sup],
+               'experimental_foci_superposition': [exp_foc_sup],
+               'randomized_pixel_superposition': [superpositions['pixel']],
+               'randomized_foci_superposition': [superpositions['label']]}
+        res = pd.DataFrame.from_dict(res)
 
     return res

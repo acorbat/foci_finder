@@ -1,3 +1,8 @@
+import sys
+sys.path.append('/mnt/data/Laboratorio/img_manager/')
+sys.path.append('/mnt/data/Laboratorio/uVesiculas/foci_finder/foci_finder')
+sys.path.append('/mnt/data/Laboratorio/onefilers')
+
 import pda
 import pathlib
 
