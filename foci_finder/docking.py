@@ -96,6 +96,17 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
         raise LookupError
 
 
+def segment_all(foci_stack, mito_stack):
+    foci_labeled = fa.find_foci(foci_stack)
+    cell_segm = fa.find_cell(foci_stack, foci_labeled > 0)
+    if mito_stack:
+        mito_segm = fa.find_mito(mito_stack, cell_segm, foci_labeled > 0)
+    else:
+        mito_segm = None
+
+    return foci_labeled, cell_segm, mito_segm
+
+
 def randomize_and_calculate(params):
     i, foci_labeled, cell_segm, mito_segm = params
     new_focis = rando(foci_labeled, cell_segm)
@@ -113,9 +124,7 @@ def my_iterator(N, foci_labeled, cell_segm, mito_segm):
 
 def evaluate_superposition(foci_stack, mito_stack, N=500):
     # Find foci, cell and mitochondrias
-    foci_labeled = fa.find_foci(foci_stack)
-    cell_segm = fa.find_cell(foci_stack, foci_labeled > 0)
-    mito_segm = fa.find_mito(mito_stack, cell_segm, foci_labeled > 0)
+    foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
 
     # calculate pixel superposition
     exp_pix_sup = calculate_superposition(foci_labeled, mito_segm)
@@ -141,3 +150,20 @@ def evaluate_superposition(foci_stack, mito_stack, N=500):
         res = pd.DataFrame.from_dict(res)
 
     return res
+
+
+def count_foci(foci_stack, mito_stack, path=None):
+    foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
+
+    df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
+
+    if path:
+        foci_path = path.with_name(path.stem + '_foci_segm.tiff')
+        fa.save_img(foci_path, foci_labeled)
+        cell_path = path.with_name(path.stem + '_cell_segm.tiff')
+        fa.save_img(cell_path, cell_segm)
+        if mito_segm:
+            mito_path = path.with_name(path.stem + '_mito_segm.tiff')
+            fa.save_img(mito_path, mito_segm)
+
+    return df

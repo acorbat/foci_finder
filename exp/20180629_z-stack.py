@@ -9,12 +9,13 @@ import pathlib
 from img_manager import oiffile as oif
 from foci_finder import docking as dk
 
-data_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/docking/simultaneous/')
+data_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/docking/timelapses/')
+# data_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/docking/simultaneous/')
 
 
 def analyze_file(p, funcs):
     if p.suffix != '.oif':
-        return None
+        return None, None
 
     print(p)
 
@@ -23,11 +24,14 @@ def analyze_file(p, funcs):
     # get foci and mito arrays
     stack = img.asarray()
     foci_stack = stack[0].astype('float')
-    mito_stack = stack[1].astype('float')
+    mito_stack = None
+    # foci_stack = stack[0].astype('float')
+    # mito_stack = stack[1].astype('float')
 
-    df = dk.evaluate_superposition(foci_stack, mito_stack)
+    # df = dk.evaluate_superposition(foci_stack, mito_stack)
+    df = dk.count_foci(foci_stack, mito_stack, path=p)
 
-    df.to_pickle(str(p.with_suffix('.pandas')))
+    df.to_pickle(str(p.with_name(p.stem + '_foci.pandas')))
 
     return df, None
 
@@ -35,7 +39,7 @@ def analyze_file(p, funcs):
 funcs = [('date', pda.process_folder, None),
          ('condition', pda.process_folder, None),
          ('experiment', pda.process_folder, None),
-         ('_', None, analyze_file)]
+         ('cell', None, analyze_file)]
 
 df, edf = pda.process_folder(data_dir, funcs)
 

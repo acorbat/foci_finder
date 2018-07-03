@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -5,7 +6,7 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_dilation, remove_small_objects, disk
-
+from img_manager import tifffile as tif
 
 def my_KMeans(stack, clusters=2):
     """Applies K Means algorithm to a whole stack ignoring NaNs and returns a stack of the same shape with the
@@ -81,3 +82,12 @@ def find_mito(stack, cell_mask, foci_mask):
     mito_classif = np.asarray([binary_dilation(this, selem=disk(2)) for this in mito_classif])
 
     return mito_classif
+
+
+def save_img(path, stack):
+    stack = stack.astype('int8')
+    tif.imsave(str(path), data=stack)
+    # with h5py.File(str(path), "w") as store_file:
+        # store_file.create_dataset(name="image", data=stack, chunks=True, compression='gzip', dtype='int8')
+        # for key, val in metadata.items():
+        #     store_file["image"].attrs[key] = val
