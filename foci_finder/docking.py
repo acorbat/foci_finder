@@ -55,6 +55,20 @@ def rando(foci_label, cell_mask):
     return new_foci
 
 
+def relabel_by_area(labeled_mask, reverse=True):
+
+    areas = sorted(((np.sum(labeled_mask == ndx), ndx) for ndx in np.unique(labeled_mask.flatten()) if ndx > 0),
+                   reverse=reverse)
+
+    out = np.zeros_like(labeled_mask)
+
+    for new, (area, old) in enumerate(areas, 1):
+       out[labeled_mask == old] = new
+
+    return out
+
+
+
 def randomize_foci_positions(foci_df, cell_coords):
     """Takes a foci DataFrame and randomizes the positions of foci into cell_coords."""
     random_foci = foci_df.copy()
@@ -99,7 +113,7 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
 def segment_all(foci_stack, mito_stack):
     foci_labeled = fa.find_foci(foci_stack)
     cell_segm = fa.find_cell(foci_stack, foci_labeled > 0)
-    if mito_stack:
+    if mito_stack is not None:
         mito_segm = fa.find_mito(mito_stack, cell_segm, foci_labeled > 0)
     else:
         mito_segm = None
@@ -122,9 +136,17 @@ def my_iterator(N, foci_labeled, cell_segm, mito_segm):
         yield i, foci_labeled, cell_segm, mito_segm
 
 
-def evaluate_superposition(foci_stack, mito_stack, N=500):
+def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     # Find foci, cell and mitochondrias
     foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
+
+    # Reorder foci, must try it
+    foci_labeled = relabel_by_area(foci_labeled)
+
+    if path:
+        save_all(foci_labeled, cell_segm, mito_segm, path)
+
+
 
     # calculate pixel superposition
     exp_pix_sup = calculate_superposition(foci_labeled, mito_segm)
@@ -158,12 +180,16 @@ def count_foci(foci_stack, mito_stack, path=None):
     df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
 
     if path:
-        foci_path = path.with_name(path.stem + '_foci_segm.tiff')
-        fa.save_img(foci_path, foci_labeled)
-        cell_path = path.with_name(path.stem + '_cell_segm.tiff')
-        fa.save_img(cell_path, cell_segm)
-        if mito_segm:
-            mito_path = path.with_name(path.stem + '_mito_segm.tiff')
-            fa.save_img(mito_path, mito_segm)
+        save_all(foci_labeled, cell_segm, mito_segm, path)
 
     return df
+
+
+def save_all(foci_labeled, cell_segm, mito_segm, path):
+    foci_path = path.with_name(path.stem + '_foci_segm.tiff')
+    fa.save_img(foci_path, foci_labeled)
+    cell_path = path.with_name(path.stem + '_cell_segm.tiff')
+    fa.save_img(cell_path, cell_segm)
+    if mito_segm is not None:
+        mito_path = path.with_name(path.stem + '_mito_segm.tiff')
+        fa.save_img(mito_path, mito_segm)
