@@ -130,7 +130,8 @@ def randomize_and_calculate(params):
     """Takes an index i for iteration number, and segmentation stacks. Foci are realocated using rando function into
     cell segm and then superposition is calculated. Index and superpositions is returned."""
     i, foci_labeled, cell_segm, mito_segm = params
-    new_focis = rando(foci_labeled, cell_segm)
+    complete_cell = cell_segm + foci_labeled > 0
+    new_focis = rando(foci_labeled, complete_cell)
     new_focis = label(new_focis)
 
     superpositions = [calculate_superposition(new_focis, mito_segm, how=key) for key in ['pixel', 'label']]
