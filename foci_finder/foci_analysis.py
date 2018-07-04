@@ -44,9 +44,9 @@ def find_foci(stack, LoG_size=[2, 2, 2]):
     return labeled
 
 
-def label_to_df(labeled, cols=['label', 'centroid', 'coords']):
+def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=None):
     """Returns a DataFrame where each row is a labeled object and each column in cols is the regionprop to be saved."""
-    regions = regionprops(labeled)
+    regions = regionprops(labeled, intensity_image=intensity_image)
     this_focus = {col: [region[col] for region in regions] for col in cols}
     return pd.DataFrame.from_dict(this_focus)
 
