@@ -177,7 +177,11 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
 def count_foci(foci_stack, mito_stack, path=None):
     foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
 
-    df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
+    if mito_segm:
+        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
+                            intensity_image=mito_segm)
+    else:
+        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
 
     if path:
         save_all(foci_labeled, cell_segm, mito_segm, path)
