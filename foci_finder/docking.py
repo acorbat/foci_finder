@@ -16,6 +16,7 @@ def move_focus(focus_coord, new_position):
 
 @nb.njit
 def mycheck(cell, focus):
+    """Checks possible positions for the specific focus inside the cell volume. Uses numba for optimization."""
     out = np.zeros_like(cell)
     M, N, O = cell.shape
     P, Q, R = focus.shape
@@ -31,9 +32,10 @@ def mycheck(cell, focus):
 
 def rando(foci_label, cell_mask):
     """
+    Takes the labeled foci stack, and iterates over each foci repositioning them inside the cell segmentation volume.
 
     :param cell_mask: binary array, M, N, O
-    :param foci_mask: list of binary array of Mi, Mi, Oi
+    :param foci_label: list of binary array of Mi, Mi, Oi
     :return: binary array, M, N, O
     """
     new_foci = np.zeros_like(cell_mask)
@@ -56,7 +58,8 @@ def rando(foci_label, cell_mask):
 
 
 def relabel_by_area(labeled_mask, reverse=True):
-
+    """Takes a labeled foci images and relabels it according to volume size. If reverse=True largest foci is smallest
+    label."""
     areas = sorted(((np.sum(labeled_mask == ndx), ndx) for ndx in np.unique(labeled_mask.flatten()) if ndx > 0),
                    reverse=reverse)
 
@@ -70,7 +73,8 @@ def relabel_by_area(labeled_mask, reverse=True):
 
 
 def randomize_foci_positions(foci_df, cell_coords):
-    """Takes a foci DataFrame and randomizes the positions of foci into cell_coords."""
+    """(deprecated) Takes a foci DataFrame and randomizes the positions of foci into cell_coords.
+    Used to be the position randomization function."""
     random_foci = foci_df.copy()
     new_poss = np.random.choice(len(cell_coords), size=len(random_foci), replace=False)
     new_coords = [move_focus(foci_coord, cell_coords[new_pos]) for foci_coord, new_pos in
@@ -111,6 +115,7 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
 
 
 def segment_all(foci_stack, mito_stack):
+    """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None."""
     foci_labeled = fa.find_foci(foci_stack)
     cell_segm = fa.find_cell(foci_stack, foci_labeled > 0)
     if mito_stack is not None:
@@ -122,6 +127,8 @@ def segment_all(foci_stack, mito_stack):
 
 
 def randomize_and_calculate(params):
+    """Takes an index i for iteration number, and segmentation stacks. Foci are realocated using rando function into
+    cell segm and then superposition is calculated. Index and superpositions is returned."""
     i, foci_labeled, cell_segm, mito_segm = params
     new_focis = rando(foci_labeled, cell_segm)
     new_focis = label(new_focis)
@@ -132,11 +139,15 @@ def randomize_and_calculate(params):
 
 
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
+    """Defined iterator to implement multiprocessing. Yields i in range and the segmented images given."""
     for i in range(N):
         yield i, foci_labeled, cell_segm, mito_segm
 
 
 def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
+    """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
+    segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
+    correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
     # Find foci, cell and mitochondrias
     foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
 
@@ -175,9 +186,11 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
 
 
 def count_foci(foci_stack, mito_stack, path=None):
+    """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
+     segmentation is saved there. A DataFrame with foci found and their characterizations is returned."""
     foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
 
-    if mito_segm:
+    if mito_segm is not None:
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
                             intensity_image=mito_segm)
     else:
@@ -190,6 +203,7 @@ def count_foci(foci_stack, mito_stack, path=None):
 
 
 def save_all(foci_labeled, cell_segm, mito_segm, path):
+    """Saves every stack in path plus the corresponding suffix. If mito_segm is None, it does not save it."""
     foci_path = path.with_name(path.stem + '_foci_segm.tiff')
     fa.save_img(foci_path, foci_labeled)
     cell_path = path.with_name(path.stem + '_cell_segm.tiff')
