@@ -101,7 +101,6 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
         return np.sum(mito_sup) / len(mito_sup)
 
     elif how == 'label':
-        # Todo: Test this function
         n_focis = 0
         n_focis_sup = 0
         for region in regionprops(foci_labeled, intensity_image=mito_segm):
