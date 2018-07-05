@@ -85,6 +85,7 @@ def find_mito(stack, cell_mask, foci_mask):
 
 
 def save_img(path, stack):
+    """Saves stack as 8 bit integer in tif format."""
     stack = stack.astype('int8')
     tif.imsave(str(path), data=stack)
     # with h5py.File(str(path), "w") as store_file:
