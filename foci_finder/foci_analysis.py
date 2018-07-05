@@ -29,17 +29,27 @@ def my_KMeans(stack, clusters=2):
     return classif.reshape(stack.shape)
 
 
-def find_foci(stack, LoG_size=[2, 2, 2]):
+def find_foci(stack, LoG_size=None):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
-    filtered = -1 * gaussian_laplace(stack, LoG_size, mode='nearest')  # Filter image with LoG (correlates with blobs)
-    classif = my_KMeans(filtered)  # all pixels are handled as list
-    classif = np.concatenate([np.zeros((LoG_size[0],) + stack.shape[1:]),
-                              classif,
-                              np.zeros((LoG_size[0],) + stack.shape[1:])]
-                             )  # add zeros in case cell is close to upper or lower limit
-    classif = binary_opening(classif)  # maybe it's unnecessary or a hyper parameter
-    classif = classif[LoG_size[0]:-LoG_size[0]]  # Delete added image.
-    labeled = label(classif)  # labelling in 3D
+    dims = len(stack.shape)
+    if dims <= 3:
+        if LoG_size is None:
+            LoG_size = [2, ] * dims
+
+        filtered = -1 * gaussian_laplace(stack, LoG_size,
+                                         mode='nearest')  # Filter image with LoG (correlates with blobs)
+        classif = my_KMeans(filtered)  # all pixels are handled as list
+        classif = np.concatenate([np.zeros((LoG_size[0],) + stack.shape[1:]),
+                                  classif,
+                                  np.zeros((LoG_size[0],) + stack.shape[1:])]
+                                 )  # add zeros in case cell is close to upper or lower limit
+        classif = binary_opening(classif)  # maybe it's unnecessary or a hyper parameter
+        classif = classif[LoG_size[0]:-LoG_size[0]]  # Delete added image.
+
+        labeled = label(classif)  # Label segmented stack
+
+    else:
+        labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size) for this_stack in stack])
 
     return labeled
 
@@ -51,35 +61,56 @@ def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=N
     return pd.DataFrame.from_dict(this_focus)
 
 
-def find_cell(stack, mask):
+def find_cell(stack, mask, gaussian_kernel=None):
     """Finds cytoplasm not considering pixels in mask."""
-    cell_stack = stack.copy()
-    cell_stack = gaussian_filter(cell_stack, [1, 2, 2])
-    dil_mask = np.asarray([binary_dilation(this, selem=disk(2)) for this in mask]) # todo: this should be outside
-    cell_stack[dil_mask] = np.nan
+    dims = len(stack.shape)
+    if dims <= 3:
+        if gaussian_kernel is None:
+            if dims == 3:
+                gaussian_kernel = [1, 2, 2]
+            else:
+                gaussian_kernel = [2, ] * dims
 
-    cell_classif = my_KMeans(cell_stack)
-    cell_classif[np.isnan(cell_classif)] = 0
-    return cell_classif.astype(bool)
+        cell_stack = stack.copy()
+        cell_stack = gaussian_filter(cell_stack, gaussian_kernel)
+        dil_mask = np.asarray(
+            [binary_dilation(this, selem=disk(2)) for this in mask])  # todo: this should be outside
+        cell_stack[dil_mask] = np.nan
+
+        cell_classif = my_KMeans(cell_stack)
+        cell_classif[np.isnan(cell_classif)] = 0
+        cell_classif.astype(bool)
+
+    else:
+        cell_classif = np.asarray([find_cell(this_stack, this_mask, gaussian_kernel=gaussian_kernel)
+                                   for this_stack, this_mask in zip(stack, mask)])
+
+    return cell_classif
 
 
 def find_mito(stack, cell_mask, foci_mask):
     """Finds mitochondrias in stack in the segmented cell plus foci."""
-    # Create mask of foci and cell to know where to look for mitochondria
-    cell_mask = np.ma.array(cell_mask)
-    foci_mask = np.ma.array(foci_mask)
-    mask = np.ma.array(np.ones(stack.shape), mask=(cell_mask + foci_mask))
-    mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
-    mito_cell_stack = stack.copy()
-    mito_cell_stack[~mask] = np.nan
+    dims = len(stack.shape)
+    if dims <= 3:
+        # Create mask of foci and cell to know where to look for mitochondria
+        cell_mask = np.ma.array(cell_mask)
+        foci_mask = np.ma.array(foci_mask)
+        mask = np.ma.array(np.ones(stack.shape), mask=(cell_mask + foci_mask))
+        mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
+        mito_cell_stack = stack.copy()
+        mito_cell_stack[~mask] = np.nan
 
-    # Actually classify pixels
-    mito_classif = my_KMeans(mito_cell_stack)
+        # Actually classify pixels
+        mito_classif = my_KMeans(mito_cell_stack)
 
-    mito_classif[np.isnan(mito_classif)] = 0
-    mito_classif = mito_classif.astype(bool)
-    mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=3)
-    mito_classif = np.asarray([binary_dilation(this, selem=disk(2)) for this in mito_classif])
+        mito_classif[np.isnan(mito_classif)] = 0
+        mito_classif = mito_classif.astype(bool)
+        mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=3)
+        mito_classif = np.asarray([binary_dilation(this, selem=disk(2)) for this in mito_classif])
+
+    else:
+        mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask)
+                                   for this_stack, this_cell_mask, this_foci_mask in zip(stack, cell_mask, foci_mask)])
 
     return mito_classif
 
