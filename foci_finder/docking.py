@@ -113,18 +113,6 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
         raise LookupError
 
 
-def segment_all(foci_stack, mito_stack):
-    """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None."""
-    foci_labeled = fa.find_foci(foci_stack)
-    cell_segm = fa.find_cell(foci_stack, foci_labeled > 0)
-    if mito_stack is not None:
-        mito_segm = fa.find_mito(mito_stack, cell_segm, foci_labeled > 0)
-    else:
-        mito_segm = None
-
-    return foci_labeled, cell_segm, mito_segm
-
-
 def randomize_and_calculate(params):
     """Takes an index i for iteration number, and segmentation stacks. Foci are realocated using rando function into
     cell segm and then superposition is calculated. Index and superpositions is returned."""
@@ -149,7 +137,7 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
     correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
     # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
 
     # Reorder foci, must try it
     foci_labeled = relabel_by_area(foci_labeled)
@@ -188,7 +176,7 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
 def count_foci(foci_stack, mito_stack, path=None):
     """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
      segmentation is saved there. A DataFrame with foci found and their characterizations is returned."""
-    foci_labeled, cell_segm, mito_segm = segment_all(foci_stack, mito_stack)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
 
     if mito_segm is not None:
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
