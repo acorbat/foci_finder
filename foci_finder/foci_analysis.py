@@ -115,10 +115,15 @@ def find_mito(stack, cell_mask, foci_mask):
     return mito_classif
 
 
-def segment_all(foci_stack, mito_stack):
+def segment_all(foci_stack, mito_stack, subcellular=False):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None."""
     foci_labeled = find_foci(foci_stack)
-    cell_segm = find_cell(foci_stack, foci_labeled > 0)
+
+    if subcellular:
+        cell_segm = np.ones_like(foci_stack)
+    else:
+        cell_segm = find_cell(foci_stack, foci_labeled > 0)
+    
     if mito_stack is not None:
         mito_segm = find_mito(mito_stack, cell_segm, foci_labeled > 0)
     else:
