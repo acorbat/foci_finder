@@ -127,6 +127,17 @@ def segment_all(foci_stack, mito_stack):
     return foci_labeled, cell_segm, mito_segm
 
 
+def relabel(labeled, swap):
+    """Takes a labeled mask and a list of tuples of the swapping labels. If a label is not swapped, it will be
+    deleted."""
+    out = np.zeros_like(labeled)
+
+    for new, old in swap:
+        out[labeled == old] = new
+
+    return out
+
+
 def save_img(path, stack):
     """Saves stack as 8 bit integer in tif format."""
     stack = stack.astype('int8')

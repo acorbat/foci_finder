@@ -3,6 +3,7 @@ import multiprocessing
 import pandas as pd
 import numpy as np
 import numba as nb
+import trackpy as tp
 
 from skimage.measure import label, regionprops
 
@@ -63,13 +64,45 @@ def relabel_by_area(labeled_mask, reverse=True):
     areas = sorted(((np.sum(labeled_mask == ndx), ndx) for ndx in np.unique(labeled_mask.flatten()) if ndx > 0),
                    reverse=reverse)
 
-    out = np.zeros_like(labeled_mask)
-
+    swap = list()
     for new, (area, old) in enumerate(areas, 1):
-       out[labeled_mask == old] = new
+        swap.append([old, new])
+
+    out = fa.relabel(labeled_mask, swap)
 
     return out
 
+
+def relabel_by_track(labeled_mask, track_df):
+    """Relabels according to particle column in track_df every frame of labeled_mask according to track_df."""
+    out = np.zeros_like(labeled_mask)
+    for frame, df in track_df.groupby('frame'):
+        swap = np.asarray([df.label.values, df.particle.values])
+
+        out[frame] = fa.relabel(labeled_mask[frame], swap)
+
+    return out
+
+
+def track(labeled_stack, extra_attrs=None, intensity_image=None):
+    """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled images, saving centroid positions to be
+    used in tracking by trackpy. extra_attrs is a list of other attributes to be saved into the tracked dataframe."""
+    elements = []
+    for t, stack in enumerate(labeled_stack):  # save each desired attribute of each label from each stack into a dict.
+        for region in regionprops(stack, intensity_image=intensity_image[t]):
+            element = {'frame': t, 'label': region.label}
+
+            centroid = {axis: pos for axis, pos in zip(['z', 'y', 'x'], region.centroid)}
+            element.update(centroid)
+
+            if extra_attrs is not None:
+                extra = {attr: region[attr] for attr in extra_attrs}
+                element.update(extra)
+
+            elements.append(element)
+    elements = pd.DataFrame(elements)
+
+    return tp.link_df(elements, 25)
 
 
 def randomize_foci_positions(foci_df, cell_coords):
@@ -145,8 +178,6 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     if path:
         save_all(foci_labeled, cell_segm, mito_segm, path)
 
-
-
     # calculate pixel superposition
     exp_pix_sup = calculate_superposition(foci_labeled, mito_segm)
     exp_foc_sup = calculate_superposition(foci_labeled, mito_segm, 'label')
@@ -154,7 +185,8 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     # randomize N times foci location to estimate random superposition percentage
     output = dict()
     with multiprocessing.Pool(12) as p:
-        for i, superpositions in p.imap_unordered(randomize_and_calculate, my_iterator(N, foci_labeled, cell_segm, mito_segm)):
+        for i, superpositions in p.imap_unordered(randomize_and_calculate,
+                                                  my_iterator(N, foci_labeled, cell_segm, mito_segm)):
             print(i)
             output[i] = superpositions
 
