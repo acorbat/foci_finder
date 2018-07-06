@@ -1,5 +1,3 @@
-import multiprocessing
-
 import pandas as pd
 import numpy as np
 import numba as nb
@@ -77,7 +75,7 @@ def relabel_by_track(labeled_mask, track_df):
     """Relabels according to particle column in track_df every frame of labeled_mask according to track_df."""
     out = np.zeros_like(labeled_mask)
     for frame, df in track_df.groupby('frame'):
-        swap = np.asarray([df.label.values, df.particle.values])
+        swap = [[df.particle[i], df.label[i]] for i in df.index]
 
         out[frame] = fa.relabel(labeled_mask[frame], swap)
 
@@ -101,8 +99,10 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
 
             elements.append(element)
     elements = pd.DataFrame(elements)
+    elements = tp.link_df(elements, 15)
+    elements['particle'] += 1
 
-    return tp.link_df(elements, 25)
+    return elements
 
 
 def randomize_foci_positions(foci_df, cell_coords):
@@ -118,7 +118,8 @@ def randomize_foci_positions(foci_df, cell_coords):
 
 
 def reconstruct_label_from_df(df, shape, extra_stack=5):
-    """Takes a DataFrame and creates a labeled imaged of shape with the coordinates in df.coords"""
+    """(deprecated, mught be necessary later) Takes a DataFrame and creates a labeled imaged of shape with the
+    coordinates in df.coords"""
     rec = np.zeros(shape)
     rec = np.concatenate([rec, np.zeros((extra_stack,) + rec.shape[1:])])
     for i in df.index:
@@ -157,77 +158,3 @@ def randomize_and_calculate(params):
     superpositions = [calculate_superposition(new_focis, mito_segm, how=key) for key in ['pixel', 'label']]
 
     return i, superpositions
-
-
-def my_iterator(N, foci_labeled, cell_segm, mito_segm):
-    """Defined iterator to implement multiprocessing. Yields i in range and the segmented images given."""
-    for i in range(N):
-        yield i, foci_labeled, cell_segm, mito_segm
-
-
-def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
-    """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
-    segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
-    correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
-    # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
-
-    # Reorder foci, must try it
-    foci_labeled = relabel_by_area(foci_labeled)
-
-    if path:
-        save_all(foci_labeled, cell_segm, mito_segm, path)
-
-    # calculate pixel superposition
-    exp_pix_sup = calculate_superposition(foci_labeled, mito_segm)
-    exp_foc_sup = calculate_superposition(foci_labeled, mito_segm, 'label')
-
-    # randomize N times foci location to estimate random superposition percentage
-    output = dict()
-    with multiprocessing.Pool(12) as p:
-        for i, superpositions in p.imap_unordered(randomize_and_calculate,
-                                                  my_iterator(N, foci_labeled, cell_segm, mito_segm)):
-            print(i)
-            output[i] = superpositions
-
-        superpositions = {'pixel': [], 'label': []}
-        for vals in output.values():
-            for j, key in enumerate(['pixel', 'label']):
-                superpositions[key].append(vals[j])
-
-        res = {'n_foci': [foci_labeled.max()],
-               'experimental_pixel_superposition': [exp_pix_sup],
-               'experimental_foci_superposition': [exp_foc_sup],
-               'randomized_pixel_superposition': [superpositions['pixel']],
-               'randomized_foci_superposition': [superpositions['label']]}
-        res = pd.DataFrame.from_dict(res)
-
-    return res
-
-
-def count_foci(foci_stack, mito_stack, path=None):
-    """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
-     segmentation is saved there. A DataFrame with foci found and their characterizations is returned."""
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
-
-    if mito_segm is not None:
-        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
-                            intensity_image=mito_segm)
-    else:
-        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
-
-    if path:
-        save_all(foci_labeled, cell_segm, mito_segm, path)
-
-    return df
-
-
-def save_all(foci_labeled, cell_segm, mito_segm, path):
-    """Saves every stack in path plus the corresponding suffix. If mito_segm is None, it does not save it."""
-    foci_path = path.with_name(path.stem + '_foci_segm.tiff')
-    fa.save_img(foci_path, foci_labeled)
-    cell_path = path.with_name(path.stem + '_cell_segm.tiff')
-    fa.save_img(cell_path, cell_segm)
-    if mito_segm is not None:
-        mito_path = path.with_name(path.stem + '_mito_segm.tiff')
-        fa.save_img(mito_path, mito_segm)

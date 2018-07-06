@@ -7,7 +7,7 @@ import pda
 import pathlib
 
 from img_manager import oiffile as oif
-from foci_finder import docking as dk
+from foci_finder import pipelines as pipe
 
 # data_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/docking/timelapses/')
 data_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/docking/simultaneous/')
@@ -28,10 +28,10 @@ def analyze_file(p, funcs):
     foci_stack = stack[0].astype('float')
     mito_stack = stack[1].astype('float')
 
-    df = dk.evaluate_superposition(foci_stack, mito_stack, path=p)
+    df = pipe.evaluate_superposition(foci_stack, mito_stack, path=p)
     df.to_pickle(str(p.with_name(p.stem + '_superposition.pandas')))
 
-    df = dk.count_foci(foci_stack, mito_stack)
+    df = pipe.count_foci(foci_stack, mito_stack)
     df.to_pickle(str(p.with_name(p.stem + '_foci.pandas')))
 
     return df, None
