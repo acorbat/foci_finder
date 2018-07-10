@@ -1,5 +1,7 @@
 import multiprocessing
 
+import pandas as pd
+
 from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
 
@@ -32,7 +34,7 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     with multiprocessing.Pool(12) as p:
         for i, superpositions in p.imap_unordered(dk.randomize_and_calculate,
                                                   my_iterator(N, foci_labeled, cell_segm, mito_segm)):
-            print(i)
+            print('Performing iteration %d' % i)
             output[i] = superpositions
 
         superpositions = {'pixel': [], 'label': []}
@@ -65,3 +67,18 @@ def count_foci(foci_stack, mito_stack, path=None):
         dk.save_all(foci_labeled, cell_segm, mito_segm, path)
 
     return df
+
+
+def track_and_dock(foci_stack, mito_stack, path=None):
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True)
+
+    tracked = dk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
+    particle_labeled = dk.relabel_by_track(foci_labeled, tracked)
+
+    if path:
+        fa.save_all(particle_labeled, cell_segm, mito_segm, path)
+
+    tracked = dk.add_distances(tracked, particle_labeled, mito_segm)
+    tracked = dk.add_distances(tracked, particle_labeled, mito_segm, col_name='full_erode')
+
+    return tracked

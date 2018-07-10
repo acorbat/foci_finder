@@ -4,6 +4,7 @@ import numba as nb
 import trackpy as tp
 
 from skimage.measure import label, regionprops
+from skimage.morphology import binary_erosion, binary_dilation, disk
 
 from foci_finder import foci_analysis as fa
 
@@ -90,7 +91,7 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
         for region in regionprops(stack, intensity_image=intensity_image[t]):
             element = {'frame': t, 'label': region.label}
 
-            centroid = {axis: pos for axis, pos in zip(['z', 'y', 'x'], region.centroid)}
+            centroid = {axis: pos for axis, pos in zip(['x', 'y', 'z'], reversed(region.centroid))}
             element.update(centroid)
 
             if extra_attrs is not None:
@@ -103,6 +104,63 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
     elements['particle'] += 1
 
     return elements
+
+
+def evaluate_distance(focus_mask, mito_segm):
+    n = 0
+    if len(focus_mask.shape) == 3:
+        def my_erode(focus_mask):
+            return np.asarray([binary_erosion(this_focus_mask) for this_focus_mask in focus_mask])
+
+        def my_dilate(focus_mask):
+            return np.asarray([binary_dilation(this_focus_mask) for this_focus_mask in focus_mask])
+
+    elif len(focus_mask.shape) == 2:
+        def my_erode(focus_mask):
+            return binary_erosion(focus_mask)
+
+        def my_dilate(focus_mask):
+            return binary_dilation(focus_mask)
+
+    else:
+        raise ValueError('dimension mismatch')
+
+    if any(mito_segm.flatten()):
+        if any(mito_segm[focus_mask]):
+            while any(mito_segm[focus_mask]):
+                n += 1
+                focus_mask = my_erode(focus_mask)
+
+            return -n
+
+        else:
+            while not any(mito_segm[focus_mask]):
+                n += 1
+                focus_mask = my_dilate(focus_mask)
+
+            return n
+
+    else:
+        return np.nan
+
+
+def add_distances(tracked, particle_labeled, mito_segm, col_name='distance'):
+    distances = []
+    for i in tracked.index:
+        t = tracked.frame[i]
+        particle = tracked.particle[i]
+
+        print('Analyzing particle %d in frame %d' % (particle, t))
+
+        focus_mask = particle_labeled[t] == particle
+        mito_segm_sel = mito_segm[t]
+
+        dist = evaluate_distance(focus_mask, mito_segm_sel)
+        distances.append(dist)
+        print(dist)
+    tracked[col_name] = distances
+
+    return tracked
 
 
 def randomize_foci_positions(foci_df, cell_coords):
@@ -151,8 +209,12 @@ def randomize_and_calculate(params):
     """Takes an index i for iteration number, and segmentation stacks. Foci are realocated using rando function into
     cell segm and then superposition is calculated. Index and superpositions is returned."""
     i, foci_labeled, cell_segm, mito_segm = params
-    complete_cell = cell_segm + foci_labeled > 0
-    new_focis = rando(foci_labeled, complete_cell)
+    cell_mask = np.ma.array(cell_segm)
+    foci_mask = np.ma.array(foci_labeled > 0)
+    mask = np.ma.array(np.ones(foci_labeled.shape), mask=(cell_mask + foci_mask))
+    mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
+
+    new_focis = rando(foci_labeled, mask)
     new_focis = label(new_focis)
 
     superpositions = [calculate_superposition(new_focis, mito_segm, how=key) for key in ['pixel', 'label']]
