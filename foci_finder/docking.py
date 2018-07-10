@@ -72,40 +72,6 @@ def relabel_by_area(labeled_mask, reverse=True):
     return out
 
 
-def relabel_by_track(labeled_mask, track_df):
-    """Relabels according to particle column in track_df every frame of labeled_mask according to track_df."""
-    out = np.zeros_like(labeled_mask)
-    for frame, df in track_df.groupby('frame'):
-        swap = [[df.particle[i], df.label[i]] for i in df.index]
-
-        out[frame] = fa.relabel(labeled_mask[frame], swap)
-
-    return out
-
-
-def track(labeled_stack, extra_attrs=None, intensity_image=None):
-    """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled images, saving centroid positions to be
-    used in tracking by trackpy. extra_attrs is a list of other attributes to be saved into the tracked dataframe."""
-    elements = []
-    for t, stack in enumerate(labeled_stack):  # save each desired attribute of each label from each stack into a dict.
-        for region in regionprops(stack, intensity_image=intensity_image[t]):
-            element = {'frame': t, 'label': region.label}
-
-            centroid = {axis: pos for axis, pos in zip(['x', 'y', 'z'], reversed(region.centroid))}
-            element.update(centroid)
-
-            if extra_attrs is not None:
-                extra = {attr: region[attr] for attr in extra_attrs}
-                element.update(extra)
-
-            elements.append(element)
-    elements = pd.DataFrame(elements)
-    elements = tp.link_df(elements, 15)
-    elements['particle'] += 1
-
-    return elements
-
-
 def evaluate_distance(focus_mask, mito_segm):
     n = 0
     if len(focus_mask.shape) == 3:
