@@ -1,7 +1,5 @@
-import pandas as pd
 import numpy as np
 import numba as nb
-import trackpy as tp
 
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_erosion, binary_dilation, disk

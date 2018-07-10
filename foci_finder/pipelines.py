@@ -4,6 +4,7 @@ import pandas as pd
 
 from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
+from foci_finder import tracking as tk
 
 
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
@@ -64,7 +65,7 @@ def count_foci(foci_stack, mito_stack, path=None):
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
 
     if path:
-        dk.save_all(foci_labeled, cell_segm, mito_segm, path)
+        fa.save_all(foci_labeled, cell_segm, mito_segm, path)
 
     return df
 
@@ -72,8 +73,8 @@ def count_foci(foci_stack, mito_stack, path=None):
 def track_and_dock(foci_stack, mito_stack, path=None):
     foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True)
 
-    tracked = dk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
-    particle_labeled = dk.relabel_by_track(foci_labeled, tracked)
+    tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
+    particle_labeled = tk.relabel_by_track(foci_labeled, tracked)
 
     if path:
         fa.save_all(particle_labeled, cell_segm, mito_segm, path)
