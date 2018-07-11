@@ -35,7 +35,7 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
 
             elements.append(element)
     elements = pd.DataFrame(elements)
-    elements = tp.link_df(elements, 15)
+    elements = tp.link_df(elements, 20, memory=1)
     elements['particle'] += 1
 
     return elements
