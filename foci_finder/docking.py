@@ -1,5 +1,7 @@
+import pandas as pd
 import numpy as np
 import numba as nb
+import trackpy as tp
 
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_erosion, binary_dilation, disk
@@ -68,6 +70,15 @@ def relabel_by_area(labeled_mask, reverse=True):
     out = fa.relabel(labeled_mask, swap)
 
     return out
+
+
+def calculate_distances(foci_labeled, mito_segm):
+    dist_dict = []
+    for region in regionprops(foci_labeled):
+        label = region.label
+        distance = evaluate_distance(foci_labeled == label, mito_segm)
+        dist_dict.append({'label': label, 'distance': distance})
+    return pd.DataFrame.from_dict(dist_dict)
 
 
 def evaluate_distance(focus_mask, mito_segm):
