@@ -147,8 +147,10 @@ def relabel(labeled, swap):
 
 def save_img(path, stack):
     """Saves stack as 8 bit integer in tif format."""
-    stack = stack.astype('int8')
-    tif.imsave(str(path), data=stack)
+    stack = stack.astype('float32')
+    if len(stack.shape) > 2:
+        stack = tif.transpose_axes(stack, 'CTZYX', asaxes='TZCYX')
+    tif.imsave(str(path), data=stack, imagej=True)
     # with h5py.File(str(path), "w") as store_file:
         # store_file.create_dataset(name="image", data=stack, chunks=True, compression='gzip', dtype='int8')
         # for key, val in metadata.items():
