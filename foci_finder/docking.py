@@ -73,15 +73,42 @@ def relabel_by_area(labeled_mask, reverse=True):
 
 
 def calculate_distances(foci_labeled, mito_segm):
-    dist_dict = []
-    for region in regionprops(foci_labeled):
-        label = region.label
-        distance = evaluate_distance(foci_labeled == label, mito_segm)
-        dist_dict.append({'label': label, 'distance': distance})
-    return pd.DataFrame.from_dict(dist_dict)
+    """Takes a foci_labeled image and mitochondrial segmentation and evaluates distance for each foci returning a
+    Dataframe where label is foci label and distance column contains the corresponding distances."""
+    ndims = len(foci_labeled.shape)
+    if ndims <= 3:
+        dist_dict = []
+        for region in regionprops(foci_labeled):
+            label = region.label
+            distance = evaluate_distance(foci_labeled == label, mito_segm)
+            dist_dict.append({'label': label, 'distance': distance})
+        return pd.DataFrame.from_dict(dist_dict)
+
+    elif ndims == 4:
+        df_all = pd.DataFrame()
+        for frame, (foci, mito) in enumerate(zip(foci_labeled, mito_segm)):
+            df = calculate_distances(foci, mito)
+            df['frame'] = frame
+            df_all = df_all.append(df, ignore_index=True, sort=True)
+        return df_all
+
+    elif ndims == 5:
+        df_all = pd.DataFrame()
+        for chan, (foci, mito) in enumerate(zip(foci_labeled, mito_segm)):
+            df = calculate_distances(foci, mito)
+            df['channel'] = chan
+            df_all = df_all.append(df, ignore_index=True, sort=True)
+        return df_all
+
+    else:
+        raise NotImplementedError('More than 5 dimensions is not implemented.')
+
+
 
 
 def evaluate_distance(focus_mask, mito_segm):
+    """Takes a mask for a single foci and dilates in a bidimensional way until mitochondria in mito_segm is touched (or
+    is not touched anymore if it was already superposed). Algorithm stops if dilates is run 1000 times."""
     n = 0
     if len(focus_mask.shape) == 3:
         def my_erode(focus_mask):
@@ -100,8 +127,8 @@ def evaluate_distance(focus_mask, mito_segm):
     else:
         raise ValueError('dimension mismatch')
 
-    if any(mito_segm.flatten()):
-        if any(mito_segm[focus_mask]):
+    if any(mito_segm.flatten()):  # Check if there is any mitochondria
+        if any(mito_segm[focus_mask]):  # First check if focus is superposed to mitochondria
             while any(mito_segm[focus_mask]):
                 n += 1
                 focus_mask = my_erode(focus_mask)
@@ -109,7 +136,7 @@ def evaluate_distance(focus_mask, mito_segm):
             return -n
 
         else:
-            while not any(mito_segm[focus_mask]):
+            while not any(mito_segm[focus_mask]) and n < 1000:
                 n += 1
                 focus_mask = my_dilate(focus_mask)
 
