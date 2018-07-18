@@ -89,7 +89,7 @@ def find_cell(stack, mask, gaussian_kernel=None):
     return cell_classif
 
 
-def find_mito(stack, cell_mask, foci_mask):
+def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
     """Finds mitochondrias in stack in the segmented cell plus foci."""
     dims = len(stack.shape)
     if dims <= 3:
@@ -106,8 +106,8 @@ def find_mito(stack, cell_mask, foci_mask):
 
         mito_classif[np.isnan(mito_classif)] = 0
         mito_classif = mito_classif.astype(bool)
-        mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=50) for this in mito_classif])
-        mito_classif = np.asarray([binary_opening(this, selem=disk(1)) for this in mito_classif])
+        mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=filter_size) for this in mito_classif])
+        mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
 
     else:
         mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask)
@@ -116,7 +116,7 @@ def find_mito(stack, cell_mask, foci_mask):
     return mito_classif
 
 
-def segment_all(foci_stack, mito_stack, subcellular=False):
+def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, mito_opening_disk=2):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
     foci_labeled = find_foci(foci_stack)
@@ -127,7 +127,8 @@ def segment_all(foci_stack, mito_stack, subcellular=False):
         cell_segm = find_cell(foci_stack, foci_labeled > 0)
 
     if mito_stack is not None:
-        mito_segm = find_mito(mito_stack, cell_segm, foci_labeled > 0)
+        mito_segm = find_mito(mito_stack, cell_segm, foci_labeled > 0,
+                              filter_size=mito_filter_size, opening_disk=mito_opening_disk)
     else:
         mito_segm = None
 
