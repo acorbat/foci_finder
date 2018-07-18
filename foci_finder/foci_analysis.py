@@ -106,8 +106,8 @@ def find_mito(stack, cell_mask, foci_mask):
 
         mito_classif[np.isnan(mito_classif)] = 0
         mito_classif = mito_classif.astype(bool)
-        mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=3)
-        mito_classif = np.asarray([binary_dilation(this, selem=disk(2)) for this in mito_classif])
+        mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=50) for this in mito_classif])
+        mito_classif = np.asarray([binary_opening(this, selem=disk(1)) for this in mito_classif])
 
     else:
         mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask)
