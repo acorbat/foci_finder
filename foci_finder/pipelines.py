@@ -6,6 +6,64 @@ from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
 
 
+class Pipe(object):
+    """Pipe object should be defined so as to receive pairs of stacks corresponding to foci and mitochondria that need
+    to be analyzed in the same way. All parameters and processes to be run should be defined and Pipe should be called
+    for each pair, maybe even instanced in different interpreters to multiprocess."""
+
+    def __init__(self, attrs=['label', 'centroid', 'coords', 'area'], funcs=None):
+
+        self.attrs = attrs
+        self.funcs = funcs
+        self.df = pd.DataFrame()
+
+        # segmenting attributes
+        self.subcellur_img = False
+        self.mito_filter_size = 3
+        self.mito_opening_disk = 2
+
+
+    def process(self, foci_stack, mito_stack, p=None):
+        """Enter foci stack and mito stack to be processed. Returns a DataFrame with the results"""
+
+        # Organize stack accordingly for processing
+
+        # Segment the stacks inserted
+        self.segment(foci_stack, mito_stack)
+
+        # Extract attributes through label_to_df
+        if self.attrs is not None:
+            self.df = fa.label_to_df(self.foci_labeled, cols=self.attrs,
+                                     intensity_image=self.mito_segm)
+
+        # Perform extra functions
+        for func in self.funcs:
+            this_df = func(self.df, self.foci_labeled, self.cell_segm, self.mito_segm)
+            self.df = self.df.merge(this_df)
+
+        return self.df
+
+
+    def segment(self, foci_stack, mito_stack):
+        self.foci_labeled, self.cell_segm, self.mito_segm = fa.segment_all(foci_stack, mito_stack,  # unprocessed stacks
+                                                                           subcellular=self.subcellur_img,
+                                                                           mito_filter_size=self.mito_filter_size,
+                                                                           mito_opening_disk=self.mito_opening_disk)
+
+
+    def add_attr(self, attrs):
+        if not isinstance(attrs, list):
+            attrs = list(attrs)
+        self.attrs.extend(attrs)
+
+
+    def add_func(self, funcs):
+        if not isinstance(funcs, list):
+            funcs = list(funcs)
+        self.funcs.extend(funcs)
+
+
+
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
     """Defined iterator to implement multiprocessing. Yields i in range and the segmented images given."""
     for i in range(N):
