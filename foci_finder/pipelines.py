@@ -1,4 +1,6 @@
 import multiprocessing
+import inspect
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -61,6 +63,26 @@ class Pipe(object):
         if not isinstance(funcs, list):
             funcs = list(funcs)
         self.funcs.extend(funcs)
+
+
+class AdaptedFunction(object):
+    """Adapted Functions should be able to take the same parameters between different instances so as to be able to list
+     them and run them one after the other. Extra parameters should be saved some way. There should be a way to print
+     them and characterize them in order to dump the analysis made in Pipe."""
+
+    def __init__(self, name, func):
+        self.func = func
+        self.name = func.__name__
+        self._get_func_parametersOrderedDict(func)
+
+    def _get_func_parameters(self, func):
+        di = OrderedDict(inspect.signature(func).parameters)
+        dic = OrderedDict([(key, value.default)
+                           if value.default is not inspect._empty
+                           else (key, None)
+                           for key, value in di.items()])
+        self.vars = dic
+
 
 
 
