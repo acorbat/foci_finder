@@ -70,10 +70,10 @@ class AdaptedFunction(object):
      them and run them one after the other. Extra parameters should be saved some way. There should be a way to print
      them and characterize them in order to dump the analysis made in Pipe."""
 
-    def __init__(self, name, func):
+    def __init__(self, func):
         self.func = func
         self.name = func.__name__
-        self._get_func_parametersOrderedDict(func)
+        self._get_func_parameters(func)
 
     def _get_func_parameters(self, func):
         di = OrderedDict(inspect.signature(func).parameters)
@@ -82,6 +82,13 @@ class AdaptedFunction(object):
                            else (key, None)
                            for key, value in di.items()])
         self.vars = dic
+
+
+    def execute(self):
+        """Executes function with saved parameters."""
+        caller = 'self.func(' + ', '.join([str(value) for key, value in self.vars.items()]) + ')'
+
+        return eval(caller)
 
 
 
