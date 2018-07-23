@@ -16,23 +16,23 @@ class Pipe(object):
 
     def __init__(self, attrs=['label', 'centroid', 'coords', 'area'], funcs=None):
 
-        self.attrs = attrs
-        self.funcs = funcs
+        self.funcs = funcs  # Concatenated list of functions to be run
+
+        # Variables where results are saved
         self.df = pd.DataFrame()
-
-        # segmenting attributes
-        self.subcellur_img = False
-        self.mito_filter_size = 3
-        self.mito_opening_disk = 2
+        self.foci_labeled = None
+        self.cell_segm = None
+        self.mito_segm = None
 
 
-    def process(self, foci_stack, mito_stack, p=None):
+    def process(self, p=None):
         """Enter foci stack and mito stack to be processed. Returns a DataFrame with the results"""
 
         # Organize stack accordingly for processing
 
         # Segment the stacks inserted
-        self.segment(foci_stack, mito_stack)
+        if self.foci_labeled is None:
+            self.segment()
 
         # Extract attributes through label_to_df
         if self.attrs is not None:
@@ -46,13 +46,21 @@ class Pipe(object):
 
         return self.df
 
+    def add_segmenter(self, segmenter):
+        self.segmenter = segmenter
 
     def segment(self, foci_stack, mito_stack):
-        self.foci_labeled, self.cell_segm, self.mito_segm = fa.segment_all(foci_stack, mito_stack,  # unprocessed stacks
-                                                                           subcellular=self.subcellur_img,
-                                                                           mito_filter_size=self.mito_filter_size,
-                                                                           mito_opening_disk=self.mito_opening_disk)
+        self.segmenter.vars['foci_stack'] = foci_stack
+        self.segmenter.vars['mito_stack'] = mito_stack
+        self.foci_labeled, self.cell_segm, self.mito_segm = self.segmenter.execute()
 
+    def renew_stack(self, foci_stack, mito_stack):
+        self.df = pd.DataFrame()
+        self.foci_labeled = None
+        self.cell_segm = None
+        self.mito_segm = None
+        self.segmenter['foci_stack'] = foci_stack.copy()
+        self.segmenter['mito_stack'] = mito_stack.copy()
 
     def add_attr(self, attrs):
         if not isinstance(attrs, list):
@@ -74,7 +82,7 @@ class AdaptedFunction(object):
     def __init__(self, func):
         self.func = func
         self.name = func.__name__
-        self._get_func_parameters(func)
+        self.vars = self._get_func_parameters(func)
 
     def _get_func_parameters(self, func):
         di = OrderedDict(inspect.signature(func).parameters)
@@ -82,7 +90,7 @@ class AdaptedFunction(object):
                            if value.default is not inspect._empty
                            else (key, None)
                            for key, value in di.items()])
-        self.vars = dic
+        return dic
 
     def execute(self):
         """Executes function with saved parameters."""
