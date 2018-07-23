@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import inspect
 from collections import OrderedDict
@@ -100,6 +101,16 @@ class AdaptedFunction(object):
     def to_dict(self):
         return {'name': self.name,
                 'Parameters': self.vars}
+
+
+    def to_json(self):
+        return json.dumps(self.to_dict())
+
+
+    def dump(self, dir):
+        with open(str(dir), "w") as write_file:
+            json.dump(self.to_dict(), write_file)
+
 
 
 
