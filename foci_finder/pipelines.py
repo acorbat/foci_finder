@@ -90,6 +90,18 @@ class AdaptedFunction(object):
 
         return eval(caller)
 
+    def __str__(self):
+        characteristics = 'Function: ' + self.name + '\n\n'
+        characteristics += '\tParameters\n\t----------\n'
+        characteristics += '\t' + '\n\t'.join([str(key) + ': ' + str(value) for key, value in self.vars.items()])
+        return characteristics
+
+
+    def to_dict(self):
+        return {'name': self.name,
+                'Parameters': self.vars}
+
+
 
 
 
