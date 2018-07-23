@@ -84,7 +84,6 @@ class AdaptedFunction(object):
                            for key, value in di.items()])
         self.vars = dic
 
-
     def execute(self):
         """Executes function with saved parameters."""
         caller = 'self.func(' + ', '.join([str(value) for key, value in self.vars.items()]) + ')'
@@ -97,18 +96,15 @@ class AdaptedFunction(object):
         characteristics += '\t' + '\n\t'.join([str(key) + ': ' + str(value) for key, value in self.vars.items()])
         return characteristics
 
-
     def to_dict(self):
         return {'name': self.name,
                 'Parameters': self.vars}
 
-
     def to_json(self):
         return json.dumps(self.to_dict())
 
-
-    def dump(self, dir):
-        with open(str(dir), "w") as write_file:
+    def dump(self, path):
+        with open(str(path), "w") as write_file:
             json.dump(self.to_dict(), write_file)
 
 
