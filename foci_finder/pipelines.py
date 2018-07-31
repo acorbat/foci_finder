@@ -67,7 +67,7 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
                                                                my_iterator(N, foci_labeled, cell_segm, mito_segm)):
             print('Performing iteration %d' % i)
             output[i] = superpositions
-            cum_sim += rando_focis
+            cum_sim += np.asarray(rando_focis>0).astype(int)
 
         superpositions = {'pixel': [], 'label': []}
         for vals in output.values():
