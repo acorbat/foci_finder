@@ -15,7 +15,9 @@ def my_iterator(N, foci_labeled, cell_segm, mito_segm):
         
 def evaluate_distance(foci_stack, mito_stack, path=None):
     # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
+                                                        mito_filter_size=50,
+                                                        mito_opening_disk=1)
 
     # Reorder foci, must try it
     foci_labeled = dk.relabel_by_area(foci_labeled)
