@@ -54,10 +54,14 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     # randomize N times foci location to estimate random superposition percentage
     output = dict()
     with multiprocessing.Pool(31) as p:
-        for i, superpositions in p.imap_unordered(dk.randomize_and_calculate,
+
+        cum_sim = np.zeros_like(foci_labeled)
+
+        for i, superpositions, rando_focis in p.imap_unordered(dk.randomize_and_calculate,
                                                   my_iterator(N, foci_labeled, cell_segm, mito_segm)):
             print('Performing iteration %d' % i)
             output[i] = superpositions
+            cum_sim += rando_focis
 
         superpositions = {'pixel': [], 'label': []}
         for vals in output.values():
@@ -70,6 +74,9 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
                'randomized_pixel_superposition': [superpositions['pixel']],
                'randomized_foci_superposition': [superpositions['label']]}
         res = pd.DataFrame.from_dict(res)
+
+        # Save cumulative randomization foci position
+        fa.save_img(path, cum_sim)
 
     return res
 

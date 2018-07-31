@@ -221,4 +221,4 @@ def randomize_and_calculate(params):
 
     superpositions = [calculate_superposition(new_focis, mito_segm, how=key) for key in ['pixel', 'label']]
 
-    return i, superpositions
+    return i, superpositions, new_focis
