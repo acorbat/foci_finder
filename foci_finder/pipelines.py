@@ -6,6 +6,20 @@ from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
 
 
+def get_x_step(oiffile):
+    # TODO: check width is actually x
+    return oiffile.mainfile['Reference Image Parameter']['WidthConvertValue']
+
+
+def get_y_step(oiffile):
+    # TODO: check height is actually y
+    return oiffile.mainfile['Reference Image Parameter']['HeightConvertValue']
+
+
+def get_z_step(oiffile):
+    return oiffile.mainfile['Axis 3 Parameters Common']['Interval']
+
+
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
     """Defined iterator to implement multiprocessing. Yields i in range and the segmented images given."""
     for i in range(N):
