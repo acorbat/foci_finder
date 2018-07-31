@@ -53,7 +53,7 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_di
 
     if path:
         fa.save_all(foci_labeled, cell_segm, mito_segm, path)
-    
+
     # calculate pixel superposition
     exp_pix_sup = dk.calculate_superposition(foci_labeled, mito_segm)
     exp_foc_sup = dk.calculate_superposition(foci_labeled, mito_segm, 'label')
@@ -83,7 +83,8 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_di
         res = pd.DataFrame.from_dict(res)
 
         # Save cumulative randomization foci position
-        fa.save_img(path, cum_sim)
+        save_cum_dir = path.with_name(path.stem + '_cum_rand_foci.tif')
+        fa.save_img(save_cum_dir, cum_sim)
 
     return res
 
