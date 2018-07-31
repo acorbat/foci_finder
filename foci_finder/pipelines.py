@@ -1,6 +1,7 @@
 import multiprocessing
 
 import pandas as pd
+import numpy as np
 
 from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
