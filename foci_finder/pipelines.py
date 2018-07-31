@@ -38,21 +38,22 @@ def evaluate_distance(foci_stack, mito_stack, path=None):
     return distances
 
 
-def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
+def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_distance=3):
     """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
     segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
     correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
     # Find foci, cell and mitochondrias
     foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
                                                         mito_filter_size=50,
-                                                        mito_opening_disk=1)
+                                                        mito_opening_disk=max_dock_distance)  # Dilate mitochondria to
+    # see if foci are close but not superposed
 
     # Reorder foci, must try it
     foci_labeled = dk.relabel_by_area(foci_labeled)
 
     if path:
         fa.save_all(foci_labeled, cell_segm, mito_segm, path)
-
+    
     # calculate pixel superposition
     exp_pix_sup = dk.calculate_superposition(foci_labeled, mito_segm)
     exp_foc_sup = dk.calculate_superposition(foci_labeled, mito_segm, 'label')
