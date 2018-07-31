@@ -63,7 +63,11 @@ def analyze_file_simultaneous(p, funcs):
     foci_stack = stack[0].astype('float')
     mito_stack = stack[1].astype('float')
 
-    df = pipe.evaluate_superposition(foci_stack, mito_stack, path=p)
+    # calculate dilations necessary to find docked foci
+    x_step = pipe.get_x_step(img)
+    max_dils = int(0.3/x_step)
+
+    df = pipe.evaluate_superposition(foci_stack, mito_stack, path=p, max_dock_distance=max_dils)
     df.to_pickle(str(p.with_name(p.stem + '_superposition.pandas')))
 
     # df = pipe.count_foci(foci_stack, mito_stack)
