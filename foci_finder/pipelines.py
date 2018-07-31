@@ -5,6 +5,7 @@ import numpy as np
 
 from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
+from foci_finder import tracking as tk
 
 
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
@@ -63,7 +64,7 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
         cum_sim = np.zeros_like(foci_labeled)
 
         for i, superpositions, rando_focis in p.imap_unordered(dk.randomize_and_calculate,
-                                                  my_iterator(N, foci_labeled, cell_segm, mito_segm)):
+                                                               my_iterator(N, foci_labeled, cell_segm, mito_segm)):
             print('Performing iteration %d' % i)
             output[i] = superpositions
             cum_sim += rando_focis
@@ -100,7 +101,7 @@ def count_foci(foci_stack, mito_stack, path=None):
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
 
     if path:
-        dk.save_all(foci_labeled, cell_segm, mito_segm, path)
+        fa.save_all(foci_labeled, cell_segm, mito_segm, path)
 
     return df
 
@@ -110,8 +111,8 @@ def track_and_dock(foci_stack, mito_stack, path=None):
                                                         mito_filter_size=50,
                                                         mito_opening_disk=1)
 
-    tracked = dk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
-    particle_labeled = dk.relabel_by_track(foci_labeled, tracked)
+    tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
+    particle_labeled = tk.relabel_by_track(foci_labeled, tracked)
 
     if path:
         fa.save_all(particle_labeled, cell_segm, mito_segm, path)
