@@ -1,9 +1,11 @@
 import multiprocessing
 
 import pandas as pd
+import numpy as np
 
 from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
+from foci_finder import tracking as tk
 
 
 def get_x_step(oiffile):
@@ -28,7 +30,9 @@ def my_iterator(N, foci_labeled, cell_segm, mito_segm):
         
 def evaluate_distance(foci_stack, mito_stack, path=None):
     # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
+                                                        mito_filter_size=50,
+                                                        mito_opening_disk=1)
 
     # Reorder foci, must try it
     foci_labeled = dk.relabel_by_area(foci_labeled)
@@ -48,12 +52,15 @@ def evaluate_distance(foci_stack, mito_stack, path=None):
     return distances
 
 
-def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
+def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_distance=3):
     """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
     segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
     correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
     # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
+                                                        mito_filter_size=50,
+                                                        mito_opening_disk=max_dock_distance)  # Dilate mitochondria to
+    # see if foci are close but not superposed
 
     # Reorder foci, must try it
     foci_labeled = dk.relabel_by_area(foci_labeled)
@@ -68,10 +75,14 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
     # randomize N times foci location to estimate random superposition percentage
     output = dict()
     with multiprocessing.Pool(31) as p:
-        for i, superpositions in p.imap_unordered(dk.randomize_and_calculate,
-                                                  my_iterator(N, foci_labeled, cell_segm, mito_segm)):
+
+        cum_sim = np.zeros_like(foci_labeled)
+
+        for i, superpositions, rando_focis in p.imap_unordered(dk.randomize_and_calculate,
+                                                               my_iterator(N, foci_labeled, cell_segm, mito_segm)):
             print('Performing iteration %d' % i)
             output[i] = superpositions
+            cum_sim += np.asarray(rando_focis>0).astype(int)
 
         superpositions = {'pixel': [], 'label': []}
         for vals in output.values():
@@ -85,13 +96,19 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None):
                'randomized_foci_superposition': [superpositions['label']]}
         res = pd.DataFrame.from_dict(res)
 
+        # Save cumulative randomization foci position
+        save_cum_dir = path.with_name(path.stem + '_cum_rand_foci.tif')
+        fa.save_img(save_cum_dir, cum_sim)
+
     return res
 
 
 def count_foci(foci_stack, mito_stack, path=None):
     """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
      segmentation is saved there. A DataFrame with foci found and their characterizations is returned."""
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
+                                                        mito_filter_size=50,
+                                                        mito_opening_disk=1)
 
     if mito_segm is not None:
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
@@ -100,16 +117,18 @@ def count_foci(foci_stack, mito_stack, path=None):
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
 
     if path:
-        dk.save_all(foci_labeled, cell_segm, mito_segm, path)
+        fa.save_all(foci_labeled, cell_segm, mito_segm, path)
 
     return df
 
 
 def track_and_dock(foci_stack, mito_stack, path=None):
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True)
+    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True,
+                                                        mito_filter_size=50,
+                                                        mito_opening_disk=1)
 
-    tracked = dk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
-    particle_labeled = dk.relabel_by_track(foci_labeled, tracked)
+    tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
+    particle_labeled = tk.relabel_by_track(foci_labeled, tracked)
 
     if path:
         fa.save_all(particle_labeled, cell_segm, mito_segm, path)
