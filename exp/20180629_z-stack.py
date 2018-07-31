@@ -11,7 +11,7 @@ from foci_finder import pipelines as pipe
 
 
 ######################## Analyze segmentation
-data_dir = pathlib.Path('/home/jovyan/work/docking/20180711')
+data_dir = pathlib.Path('/home/jovyan/work/docking')
 
 
 def analyze_file_distance(p, funcs):
@@ -43,9 +43,10 @@ funcs = [('date', pda.process_folder, None),
          ('experiment', pda.process_folder, None),
          ('cell', None, analyze_file_distance)]
 
-df, edf = pda.process_folder(data_dir, funcs)
+# df, edf = pda.process_folder(data_dir, funcs)
 
-df.to_pickle(str(data_dir.with_name('distances.pandas')))
+# df.to_pickle(str(data_dir.with_name('distances.pandas')))
+
 
 def analyze_file_simultaneous(p, funcs):
     if p.suffix != '.oif':
@@ -65,13 +66,14 @@ def analyze_file_simultaneous(p, funcs):
     df = pipe.evaluate_superposition(foci_stack, mito_stack, path=p)
     df.to_pickle(str(p.with_name(p.stem + '_superposition.pandas')))
 
-    df = pipe.count_foci(foci_stack, mito_stack)
-    df.to_pickle(str(p.with_name(p.stem + '_foci.pandas')))
+    # df = pipe.count_foci(foci_stack, mito_stack)
+    # df.to_pickle(str(p.with_name(p.stem + '_foci.pandas')))
 
     return df, None
 
 
-funcs = [('date', pda.process_folder, None),
+funcs = [('acquisition_date', pda.process_folder, None),
+         ('date', pda.process_folder, None),
          ('condition', pda.process_folder, None),
          ('experiment', pda.process_folder, None),
          ('cell', None, analyze_file_simultaneous)]
