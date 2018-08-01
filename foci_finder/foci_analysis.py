@@ -146,12 +146,23 @@ def relabel(labeled, swap):
     return out
 
 
-def save_img(path, stack):
+def save_img(path, stack, axes='YX'):
     """Saves stack as 8 bit integer in tif format."""
+    assert len(axes) == len(stack.shape)
     stack = stack.astype('float32')
+
+    # Fill array with new axis
     ndims = len(stack.shape)
-    if ndims > 3:
-        stack = tif.transpose_axes(stack, 'CTZYX', asaxes='TZCYX')
+    while ndims < 5:
+        stack = stack[np.newaxis, :]
+        ndims = len(stack.shape)
+
+    # Add missing and correct axes order according to fiji
+    new_axes = [ax for ax in 'TZXCY' if ax not in axes[:]]
+    axes = ''.join(new_axes) + axes
+
+    stack = tif.transpose_axes(stack, axes, asaxes='TZCYX')
+
     tif.imsave(str(path), data=stack, imagej=True)
     # with h5py.File(str(path), "w") as store_file:
         # store_file.create_dataset(name="image", data=stack, chunks=True, compression='gzip', dtype='int8')
