@@ -148,7 +148,6 @@ def relabel(labeled, swap):
 
 def save_img(path, stack, axes='YX'):
     """Saves stack as 8 bit integer in tif format."""
-    assert len(axes) == len(stack.shape)
     stack = stack.astype('float32')
 
     # Fill array with new axis
