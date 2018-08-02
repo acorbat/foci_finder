@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import numba as nb
-import trackpy as tp
 
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_erosion, binary_dilation, disk
@@ -72,6 +71,15 @@ def relabel_by_area(labeled_mask, reverse=True):
     return out
 
 
+def relabel_by_dock(labeled_mask, df, cond, col='distance'):
+    """Takes a labeled foci images and relabels it according to whether value in col is above cond or not."""
+
+    swap = [[2, df.label[i]] if df[col][i] > cond else [1, df.label[i]] for i in df.index]
+    out = fa.relabel(labeled_mask, swap)
+
+    return out
+
+
 def calculate_distances(foci_labeled, mito_segm):
     """Takes a foci_labeled image and mitochondrial segmentation and evaluates distance for each foci returning a
     Dataframe where label is foci label and distance column contains the corresponding distances."""
@@ -102,8 +110,6 @@ def calculate_distances(foci_labeled, mito_segm):
 
     else:
         raise NotImplementedError('More than 5 dimensions is not implemented.')
-
-
 
 
 def evaluate_distance(focus_mask, mito_segm):
