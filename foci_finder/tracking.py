@@ -5,6 +5,7 @@ import trackpy as tp
 from skimage.measure import regionprops
 
 from foci_finder import foci_analysis as fa
+from foci_finder import docking as dk
 
 
 def relabel_by_track(labeled_mask, track_df):
@@ -39,6 +40,16 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
     elements['particle'] += 1
 
     return elements
+
+
+def relabel_video_by_dock(labeled_stack, df, cond, col='distance'):
+    """Takes a time series of labeled stacks, its df and paints each foci in each time stack according to its docking
+    state. TODO: Test!!"""
+    new_stack = np.zeros_like(labeled_stack)
+    for t, stack in enumerate(labeled_stack):
+        new_stack[t] = dk.relabel_by_dock(stack, df.query('frame == ' + str(t)), cond, col=col)
+
+    return new_stack
 
 
 def msd_straight_forward(r):
