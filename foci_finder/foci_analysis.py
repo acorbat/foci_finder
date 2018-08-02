@@ -169,12 +169,12 @@ def save_img(path, stack, axes='YX'):
         #     store_file["image"].attrs[key] = val
 
 
-def save_all(foci_labeled, cell_segm, mito_segm, path):
+def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX'):
     """Saves every stack in path plus the corresponding suffix. If mito_segm is None, it does not save it."""
     foci_path = path.with_name(path.stem + '_foci_segm.tiff')
-    save_img(foci_path, foci_labeled)
+    save_img(foci_path, foci_labeled, axes)
     cell_path = path.with_name(path.stem + '_cell_segm.tiff')
-    save_img(cell_path, cell_segm)
+    save_img(cell_path, cell_segm, axes)
     if mito_segm is not None:
         mito_path = path.with_name(path.stem + '_mito_segm.tiff')
-        save_img(mito_path, mito_segm)
+        save_img(mito_path, mito_segm, axes)
