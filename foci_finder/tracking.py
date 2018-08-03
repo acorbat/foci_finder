@@ -42,6 +42,25 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
     return elements
 
 
+def add_distances(tracked, particle_labeled, mito_segm, col_name='distance'):
+    distances = []
+    for i in tracked.index:
+        t = tracked.frame[i]
+        particle = tracked.particle[i]
+
+        print('Analyzing particle %d in frame %d' % (particle, t))
+
+        focus_mask = particle_labeled[t] == particle
+        mito_segm_sel = mito_segm[t]
+
+        dist = dk.evaluate_distance(focus_mask, mito_segm_sel)
+        distances.append(dist)
+        print(dist)
+    tracked[col_name] = distances
+
+    return tracked
+
+
 def relabel_video_by_dock(labeled_stack, df, cond, col='distance'):
     """Takes a time series of labeled stacks, its df and paints each foci in each time stack according to its docking
     state. TODO: Test!!"""

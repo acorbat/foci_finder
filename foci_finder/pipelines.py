@@ -124,9 +124,9 @@ def count_foci(foci_stack, mito_stack, path=None):
     return df
 
 
-def track_and_dock(foci_stack, mito_stack, path=None):
+def track_and_dock(foci_stack, mito_stack, dist_dock, path=None):
     foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True,
-                                                        mito_filter_size=50,
+                                                        mito_filter_size=3,
                                                         mito_opening_disk=1)
 
     tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
@@ -134,6 +134,12 @@ def track_and_dock(foci_stack, mito_stack, path=None):
 
     if path:
         fa.save_all(particle_labeled, cell_segm, mito_segm, path)
+
+    # Save image classifying docked foci
+    tracked = tk.add_distances(tracked, particle_labeled, mito_segm)
+    dock_vid = tk.relabel_video_by_dock(particle_labeled, tracked, dist_dock)
+    save_dock_img_dir = path.with_name(path.stem + '_dock.tif')
+    fa.save_img(save_dock_img_dir, dock_vid)
 
     tracked = dk.add_distances(tracked, particle_labeled, mito_segm)
     tracked = dk.add_distances(tracked, particle_labeled, mito_segm, col_name='full_erode')

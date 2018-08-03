@@ -152,25 +152,6 @@ def evaluate_distance(focus_mask, mito_segm):
         return np.nan
 
 
-def add_distances(tracked, particle_labeled, mito_segm, col_name='distance'):
-    distances = []
-    for i in tracked.index:
-        t = tracked.frame[i]
-        particle = tracked.particle[i]
-
-        print('Analyzing particle %d in frame %d' % (particle, t))
-
-        focus_mask = particle_labeled[t] == particle
-        mito_segm_sel = mito_segm[t]
-
-        dist = evaluate_distance(focus_mask, mito_segm_sel)
-        distances.append(dist)
-        print(dist)
-    tracked[col_name] = distances
-
-    return tracked
-
-
 def randomize_foci_positions(foci_df, cell_coords):
     """(deprecated) Takes a foci DataFrame and randomizes the positions of foci into cell_coords.
     Used to be the position randomization function."""
