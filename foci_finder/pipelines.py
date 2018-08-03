@@ -141,7 +141,6 @@ def track_and_dock(foci_stack, mito_stack, dist_dock, path=None):
     save_dock_img_dir = path.with_name(path.stem + '_dock.tif')
     fa.save_img(save_dock_img_dir, dock_vid)
 
-    tracked = dk.add_distances(tracked, particle_labeled, mito_segm)
-    tracked = dk.add_distances(tracked, particle_labeled, mito_segm, col_name='full_erode')
+    tracked = tk.add_distances(tracked, particle_labeled, mito_segm, col_name='full_erode')
 
     return tracked
