@@ -124,12 +124,13 @@ def count_foci(foci_stack, mito_stack, path=None):
     return df
 
 
-def track_and_dock(foci_stack, mito_stack, dist_dock, path=None):
+def track_and_dock(foci_stack, mito_stack, dist_dock, scales, path=None):
     foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True,
                                                         mito_filter_size=3,
                                                         mito_opening_disk=1)
 
-    tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm)
+    tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm,
+                       scale=scales)
     particle_labeled = tk.relabel_by_track(foci_labeled, tracked)
 
     if path:

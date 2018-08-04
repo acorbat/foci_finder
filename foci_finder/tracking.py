@@ -19,7 +19,7 @@ def relabel_by_track(labeled_mask, track_df):
     return out
 
 
-def track(labeled_stack, extra_attrs=None, intensity_image=None):
+def track(labeled_stack, extra_attrs=None, intensity_image=None, scale=None):
     """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled images, saving centroid positions to be
     used in tracking by trackpy. extra_attrs is a list of other attributes to be saved into the tracked dataframe."""
     elements = []
@@ -28,6 +28,9 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None):
             element = {'frame': t, 'label': region.label}
 
             centroid = {axis: pos for axis, pos in zip(['x', 'y', 'z'], reversed(region.centroid))}
+            if tzyx_scale is not None:
+                for key in centroid.keys():
+                    centroid[key] = centroid[key] * scale[key]
             element.update(centroid)
 
             if extra_attrs is not None:
