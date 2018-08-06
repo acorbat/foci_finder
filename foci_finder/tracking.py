@@ -19,7 +19,7 @@ def relabel_by_track(labeled_mask, track_df):
     return out
 
 
-def track(labeled_stack, extra_attrs=None, intensity_image=None, scale=None):
+def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=None, scale=None):
     """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled images, saving centroid positions to be
     used in tracking by trackpy. extra_attrs is a list of other attributes to be saved into the tracked dataframe."""
     elements = []
@@ -39,7 +39,7 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None, scale=None):
 
             elements.append(element)
     elements = pd.DataFrame(elements)
-    elements = tp.link_df(elements, 20, memory=1)
+    elements = tp.link_df(elements, max_dist, memory=gap)
     elements['particle'] += 1
 
     return elements
