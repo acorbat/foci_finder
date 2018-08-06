@@ -110,7 +110,8 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
         mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
 
     else:
-        mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask)
+        mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask,
+                                             filter_size=filter_size, opening_disk=opening_disk)
                                    for this_stack, this_cell_mask, this_foci_mask in zip(stack, cell_mask, foci_mask)])
 
     return mito_classif
