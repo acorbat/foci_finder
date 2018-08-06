@@ -28,7 +28,7 @@ def track(labeled_stack, extra_attrs=None, intensity_image=None, scale=None):
             element = {'frame': t, 'label': region.label}
 
             centroid = {axis: pos for axis, pos in zip(['x', 'y', 'z'], reversed(region.centroid))}
-            if tzyx_scale is not None:
+            if scale is not None:
                 for key in centroid.keys():
                     centroid[key] = centroid[key] * scale[key]
             element.update(centroid)
