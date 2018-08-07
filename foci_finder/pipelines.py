@@ -19,7 +19,14 @@ def get_y_step(oiffile):
 
 
 def get_z_step(oiffile):
-    return oiffile.mainfile['Axis 3 Parameters Common']['Interval'] / 1000  # It's in nanometers
+    return oiffile.mainfile['Axis 3 Parameters Common']['Interval'] / 1000  # It was in nanometers
+
+
+def get_t_step(oiffile):
+    start = oiffile.mainfile['Axis 4 Parameters Common']['StartPosition']
+    end = oiffile.mainfile['Axis 4 Parameters Common']['EndPosition']
+    size_t = oiffile.mainfile['Axis 4 Parameters Common']['MaxSize']
+    return (end - start) / ((size_t - 1) * 1000)
 
 
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
