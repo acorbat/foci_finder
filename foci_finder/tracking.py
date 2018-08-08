@@ -120,9 +120,9 @@ def msd_for_df(df):
     """Takes a DataFrame and calculates 3D or 2D MSD accordingly and returns the same DataFrame with the added msd
     column."""
     if 'z' in df.columns and all(np.isfinite(df.z.values)):
-        r = np.asarray([df.x.values, df.y.values, df.z.values]).T
+        r = np.asarray([df.X.values, df.Y.values, df.Z.values]).T
     else:
-        r = np.asarray([df.x.values, df.y.values]).T
+        r = np.asarray([df.X.values, df.Y.values]).T
     msd = msd_fft(r)
     df['msd'] = msd
     return df
