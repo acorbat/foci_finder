@@ -19,7 +19,7 @@ def relabel_by_track(labeled_mask, track_df):
     return out
 
 
-def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=None, scale=None):
+def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=None, scale=None, subtr_drift=True):
     """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled images, saving centroid positions to be
     used in tracking by trackpy. extra_attrs is a list of other attributes to be saved into the tracked dataframe."""
     elements = []
@@ -39,11 +39,20 @@ def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=N
 
             elements.append(element)
     elements = pd.DataFrame(elements)
-    elements = tp.link_df(elements, max_dist,
-                          pos_columns=[axis for axis in ['Z', 'Y', 'X'] if axis in list(scale.keys())], memory=gap)
+    pos_cols = [axis for axis in ['Z', 'Y', 'X'] if axis in list(scale.keys())]
+    elements = tp.link_df(elements, max_dist, pos_columns=pos_cols, memory=gap)
+    if subtr_drift:
+        elements = subtract_drift(elements)
     elements['particle'] += 1
 
     return elements
+
+
+def subtract_drift(df, pos_cols=None):
+    if pos_cols is None:
+        pos_cols = [axis for axis in ['Z', 'Y', 'X'] if axis in df.columns]
+    drift = tp.compute_drift(df, pos_columns=pos_cols)
+    return tp.subtract_drift(df, drift)
 
 
 def add_distances(tracked, particle_labeled, mito_segm, col_name='distance'):
