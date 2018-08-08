@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label, regionprops
-from skimage.morphology import binary_opening, binary_dilation, remove_small_objects, disk
+from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
 from img_manager import tifffile as tif
 
 def my_KMeans(stack, clusters=2):
@@ -92,7 +92,7 @@ def find_cell(stack, mask, gaussian_kernel=None):
     return cell_classif
 
 
-def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
+def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2, closing_disk=0):
     """Finds mitochondrias in stack in the segmented cell plus foci."""
     dims = len(stack.shape)
     if dims <= 3:
@@ -115,9 +115,11 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
         if dims == 3:
             mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=filter_size)
                                        for this in mito_classif])
+            mito_classif = np.asarray([binary_closing(this, selem=disk(closing_disk)) for this in mito_classif])
             mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
         else:
             mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=filter_size)
+            mito_classif = binary_closing(mito_classif, selem=disk(closing_disk))
             mito_classif = binary_opening(mito_classif, selem=disk(opening_disk))
 
     else:
@@ -128,7 +130,8 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
     return mito_classif
 
 
-def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, mito_opening_disk=2):
+def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, mito_opening_disk=2,
+                mito_closing_disk=0):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
     foci_labeled = find_foci(foci_stack)
@@ -140,7 +143,9 @@ def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, m
 
     if mito_stack is not None:
         mito_segm = find_mito(mito_stack, cell_segm, foci_labeled > 0,
-                              filter_size=mito_filter_size, opening_disk=mito_opening_disk)
+                              filter_size=mito_filter_size,
+                              opening_disk=mito_opening_disk,
+                              closing_disk=mito_closing_disk)
     else:
         mito_segm = None
 
