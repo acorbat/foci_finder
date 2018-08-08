@@ -143,7 +143,7 @@ def track_and_dock(foci_stack, mito_stack, dist_dock, scales, path=None, axes='Y
     mito_segm = np.zeros_like(mito_stack, dtype=bool)
     for t, (this_foci_stack, this_mito_stack) in enumerate(zip(foci_stack, mito_stack)):
         foci_labeled[t], cell_segm[t], mito_segm[t] = fa.segment_all(this_foci_stack, this_mito_stack, subcellular=True,
-                                                                     mito_filter_size=3, mito_opening_disk=1)
+                                                                     mito_filter_size=2, mito_opening_disk=1)
     try:
         tracked = tk.track(foci_labeled, max_dist=2, gap=1, extra_attrs=['area', 'mean_intensity'],
                            intensity_image=mito_segm, scale=scales)
