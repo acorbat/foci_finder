@@ -74,8 +74,11 @@ def find_cell(stack, mask, gaussian_kernel=None):
 
         cell_stack = stack.copy()
         cell_stack = gaussian_filter(cell_stack, gaussian_kernel)
-        dil_mask = np.asarray(
-            [binary_dilation(this, selem=disk(2)) for this in mask])  # todo: this should be outside
+        if dims == 3:
+            dil_mask = np.asarray(
+                [binary_dilation(this, selem=disk(2)) for this in mask])  # todo: this should be outside
+        else:
+            dil_mask = binary_dilation(mask, selem=disk(2))  # todo: this should be outside
         cell_stack[dil_mask] = np.nan
 
         cell_classif = my_KMeans(cell_stack)
@@ -97,7 +100,10 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
         cell_mask = np.ma.array(cell_mask)
         foci_mask = np.ma.array(foci_mask)
         mask = np.ma.array(np.ones(stack.shape), mask=(cell_mask + foci_mask))
-        mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
+        if dims == 3:
+            mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
+        else:
+            mask = binary_dilation(mask, selem=disk(2))
         mito_cell_stack = stack.copy()
         mito_cell_stack[~mask] = np.nan
 
@@ -106,8 +112,13 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2):
 
         mito_classif[np.isnan(mito_classif)] = 0
         mito_classif = mito_classif.astype(bool)
-        mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=filter_size) for this in mito_classif])
-        mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
+        if dims == 3:
+            mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=filter_size)
+                                       for this in mito_classif])
+            mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
+        else:
+            mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=filter_size)
+            mito_classif = binary_opening(mito_classif, selem=disk(opening_disk))
 
     else:
         mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask,

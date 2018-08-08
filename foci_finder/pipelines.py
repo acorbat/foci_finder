@@ -29,6 +29,12 @@ def get_t_step(oiffile):
     return (end - start) / ((size_t - 1) * 1000)
 
 
+def get_axis(oiffile):
+    axes = oiffile.mainfile['Axis Parameter Common']['AxisOrder']
+    axes = axes[2:] + 'YX'
+    return axes
+
+
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
     """Defined iterator to implement multiprocessing. Yields i in range and the segmented images given."""
     for i in range(N):
@@ -131,24 +137,33 @@ def count_foci(foci_stack, mito_stack, path=None):
     return df
 
 
-def track_and_dock(foci_stack, mito_stack, dist_dock, scales, path=None):
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack, subcellular=True,
-                                                        mito_filter_size=3,
-                                                        mito_opening_disk=1)
-
-    tracked = tk.track(foci_labeled, extra_attrs=['area', 'mean_intensity'], intensity_image=mito_segm,
-                       scale=scales)
+def track_and_dock(foci_stack, mito_stack, dist_dock, scales, path=None, axes='YX'):
+    foci_labeled = np.zeros_like(foci_stack, dtype=int)
+    cell_segm = np.zeros_like(foci_stack, dtype=bool)
+    mito_segm = np.zeros_like(mito_stack, dtype=bool)
+    for t, (this_foci_stack, this_mito_stack) in enumerate(zip(foci_stack, mito_stack)):
+        foci_labeled[t], cell_segm[t], mito_segm[t] = fa.segment_all(this_foci_stack, this_mito_stack, subcellular=True,
+                                                                     mito_filter_size=3, mito_opening_disk=1)
+    try:
+        tracked = tk.track(foci_labeled, max_dist=2, gap=1, extra_attrs=['area', 'mean_intensity'],
+                           intensity_image=mito_segm, scale=scales)
+    except:
+        return pd.DataFrame()
     particle_labeled = tk.relabel_by_track(foci_labeled, tracked)
 
     if path:
-        fa.save_all(particle_labeled, cell_segm, mito_segm, path)
+        fa.save_all(particle_labeled, cell_segm, mito_segm, path, axes=axes)
 
     # Save image classifying docked foci
     tracked = tk.add_distances(tracked, particle_labeled, mito_segm)
-    dock_vid = tk.relabel_video_by_dock(particle_labeled, tracked, dist_dock)
+    dock_vid = tk.relabel_video_by_dock(foci_labeled, tracked, dist_dock)
     save_dock_img_dir = path.with_name(path.stem + '_dock.tif')
-    fa.save_img(save_dock_img_dir, dock_vid)
+    fa.save_img(save_dock_img_dir, dock_vid, axes='TZYX')
 
     tracked = tk.add_distances(tracked, particle_labeled, cell_segm, col_name='full_erode')
+
+    # correct for image calibration
+    tracked['distance'] = tracked['distance'].values * scales['X']
+    tracked['time'] = tracked['frame'].values * scales['T']
 
     return tracked

@@ -27,7 +27,7 @@ def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=N
         for region in regionprops(stack, intensity_image=intensity_image[t]):
             element = {'frame': t, 'label': region.label}
 
-            centroid = {axis: pos for axis, pos in zip(['x', 'y', 'z'], reversed(region.centroid))}
+            centroid = {axis: pos for axis, pos in zip(['X', 'Y', 'Z'], reversed(region.centroid))}
             if scale is not None:
                 for key in centroid.keys():
                     centroid[key] = centroid[key] * scale[key]
@@ -39,7 +39,8 @@ def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=N
 
             elements.append(element)
     elements = pd.DataFrame(elements)
-    elements = tp.link_df(elements, max_dist, memory=gap)
+    elements = tp.link_df(elements, max_dist,
+                          pos_columns=[axis for axis in ['Z', 'Y', 'X'] if axis in list(scale.keys())], memory=gap)
     elements['particle'] += 1
 
     return elements
@@ -66,7 +67,7 @@ def add_distances(tracked, particle_labeled, mito_segm, col_name='distance'):
 
 def relabel_video_by_dock(labeled_stack, df, cond, col='distance'):
     """Takes a time series of labeled stacks, its df and paints each foci in each time stack according to its docking
-    state. TODO: Test!!"""
+    state."""
     new_stack = np.zeros_like(labeled_stack)
     for t, stack in enumerate(labeled_stack):
         new_stack[t] = dk.relabel_by_dock(stack, df.query('frame == ' + str(t)), cond, col=col)
