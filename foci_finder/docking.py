@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import numba as nb
+import scipy as sp
 
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_erosion, binary_dilation, disk
@@ -198,6 +199,7 @@ def randomize_and_calculate(params):
     """Takes an index i for iteration number, and segmentation stacks. Foci are realocated using rando function into
     cell segm and then superposition is calculated. Index and superpositions is returned."""
     i, foci_labeled, cell_segm, mito_segm = params
+    sp.random.seed(i)
     cell_mask = np.ma.array(cell_segm)
     foci_mask = np.ma.array(foci_labeled > 0)
     mask = np.ma.array(np.ones(foci_labeled.shape), mask=(cell_mask + foci_mask))

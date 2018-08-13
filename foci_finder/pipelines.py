@@ -2,7 +2,6 @@ import multiprocessing
 
 import pandas as pd
 import numpy as np
-import scipy as sp
 
 from foci_finder import foci_analysis as fa
 from foci_finder import docking as dk
@@ -91,7 +90,6 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_di
     # randomize N times foci location to estimate random superposition percentage
     output = dict()
     with multiprocessing.Pool(31) as p:
-        sp.random.seed()
         cum_sim = np.zeros_like(foci_labeled)
 
         for i, superpositions, rando_focis in p.imap_unordered(dk.randomize_and_calculate,
