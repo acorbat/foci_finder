@@ -40,12 +40,12 @@ def find_foci(stack, LoG_size=None):
         filtered = -1 * gaussian_laplace(stack, LoG_size,
                                          mode='nearest')  # Filter image with LoG (correlates with blobs)
         classif = my_KMeans(filtered)  # all pixels are handled as list
-        classif = np.concatenate([np.zeros((LoG_size[0],) + stack.shape[1:]),
+        classif = np.concatenate([np.zeros((LoG_size[0] + 1,) + stack.shape[1:]),
                                   classif,
-                                  np.zeros((LoG_size[0],) + stack.shape[1:])]
+                                  np.zeros((LoG_size[0] + 1,) + stack.shape[1:])]
                                  )  # add zeros in case cell is close to upper or lower limit
         classif = binary_opening(classif)  # maybe it's unnecessary or a hyper parameter
-        classif = classif[LoG_size[0]:-LoG_size[0]]  # Delete added image.
+        classif = classif[LoG_size[0] + 1:-LoG_size[0] - 1]  # Delete added image.
 
         labeled = label(classif)  # Label segmented stack
 
