@@ -39,7 +39,7 @@ def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=N
 
             elements.append(element)
     elements = pd.DataFrame(elements)
-    pos_cols = [axis for axis in ['Z', 'Y', 'X'] if axis in list(scale.keys())]
+    pos_cols = [axis for axis in ['Z', 'Y', 'X'] if axis in elements.columns]
     elements = tp.link_df(elements, max_dist, pos_columns=pos_cols, memory=gap)
     if subtr_drift:
         elements = subtract_drift(elements)
