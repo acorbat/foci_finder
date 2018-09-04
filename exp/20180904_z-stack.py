@@ -27,7 +27,9 @@ def analyze_file(p, funcs):
     foci_stack = stack[0].astype('float')
     mito_stack = stack[1].astype('float')
 
-    # correct for bleeding
+    # correct for bkg and bleeding
+    foci_stack -= 20
+    mito_stack -= 15
     mito_stack = mito_stack - 0.436 * foci_stack
 
     df = pipe.evaluate_distance(foci_stack, mito_stack, path=p)
