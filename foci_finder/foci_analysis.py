@@ -35,7 +35,6 @@ def find_foci(stack, LoG_size=None):
     if dims <= 3:
         if LoG_size is None:
             LoG_size = [2, ] * dims
-            LoG_size[0] = 4
 
         filtered = -1 * gaussian_laplace(stack, LoG_size,
                                          mode='nearest')  # Filter image with LoG (correlates with blobs)
