@@ -12,7 +12,7 @@ from foci_finder import pipelines as pipe
 
 
 ######################## Analyze segmentation
-data_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/docking/subcellular/')
+data_dir = pathlib.Path('/home/jovyan/work/201808_track/')
 
 
 def analyze_file_track(p, funcs):
