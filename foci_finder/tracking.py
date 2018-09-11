@@ -93,7 +93,7 @@ def msd_straight_forward(r):
     for i, shift in enumerate(shifts):
         diffs = r[:-shift if shift else None] - r[shift:]
         sqdist = np.square(diffs).sum(axis=1)
-        msds[i] = sqdist.mean()
+        msds[i] = np.nanmean(sqdist)
 
     return msds
 
