@@ -99,7 +99,7 @@ def msd_straight_forward(r):
 
 
 def autocorrFFT(x):
-    """Calcualte autocorrelation as in
+    """Calculate autocorrelation as in
     https://stackoverflow.com/questions/34222272/computing-mean-square-displacement-using-python-and-fft"""
     N = len(x)
     F = np.fft.fft(x, n=2*N)  # 2*N because of zero-padding
