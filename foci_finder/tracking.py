@@ -125,7 +125,7 @@ def msd_fft(r):
     return S1-2*S2
 
 
-def msd_for_df(df):
+def msd_for_df(df, group_list=[]):
     """Takes a DataFrame and calculates 3D or 2D MSD accordingly and returns the same DataFrame with the added msd
     column."""
     frames = np.asarray(df.frame.values)
@@ -136,11 +136,16 @@ def msd_for_df(df):
         r = np.full((frames.max() + 1, 2), np.nan)
         r[frames] = np.asarray([df.X.values, df.Y.values]).T
 
-    msd = msd_fft(r)
-    df['msd'] = msd
+    #msd = msd_fft(r)
+    msd = msd_straight_forward(r)
+    msd = pd.DataFrame(np.asarray([np.arange(frames.max()+1), msd]).T, columns=['frame', 'msd'])
+    for col in group_list:
+        msd[col] = df[col].values[0]
+    msd.sort_values('frame', inplace=True)
+    df = df.merge(msd, how='outer')
     return df
 
 
 def add_msd_grouped(df, group_list):
     """Returns msd for each frame separating according to columns listed in group_list."""
-    return df.groupby(group_list).apply(msd_for_df)
+    return df.groupby(group_list).apply(msd_for_df, group_list=group_list)
