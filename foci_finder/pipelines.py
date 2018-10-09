@@ -38,7 +38,7 @@ def get_clip_bbox(oiffile):
     y_start = oiffile.mainfile['Axis 1 Parameters Common']['ClipPosition']
     x_size = oiffile.mainfile['Axis 0 Parameters Common']['MaxSize']
     y_size = oiffile.mainfile['Axis 1 Parameters Common']['MaxSize']
-    return (x_start, x_start + x_size, y_start, y_start + y_size)
+    return (y_start, y_start + y_size, x_start, x_start + x_size)
 
 
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
