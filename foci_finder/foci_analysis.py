@@ -162,7 +162,7 @@ def relabel(labeled, swap):
     return out
 
 
-def save_img(path, stack, axes='YX'):
+def save_img(path, stack, axes='YX', create_dir=False):
     """Saves stack as 8 bit integer in tif format."""
     stack = stack.astype('float32')
 
@@ -177,6 +177,9 @@ def save_img(path, stack, axes='YX'):
     axes = ''.join(new_axes) + axes
 
     stack = tif.transpose_axes(stack, axes, asaxes='TZCYX')
+
+    if create_dir and not path.parent.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
 
     tif.imsave(str(path), data=stack, imagej=True)
     # with h5py.File(str(path), "w") as store_file:
