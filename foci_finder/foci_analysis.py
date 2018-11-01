@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
+from skimage.feature import blob_log
 from img_manager import tifffile as tif
 
 def my_KMeans(stack, clusters=2):
@@ -133,6 +134,7 @@ def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, m
                 mito_closing_disk=0):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
+    # TODO: Add a filter for foci size
     foci_labeled = find_foci(foci_stack)
 
     if subcellular:
@@ -164,6 +166,7 @@ def relabel(labeled, swap):
 
 def save_img(path, stack, axes='YX', create_dir=False):
     """Saves stack as 8 bit integer in tif format."""
+    # TODO: change parameter order
     stack = stack.astype('float32')
 
     # Fill array with new axis
@@ -197,3 +200,28 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
     if mito_segm is not None:
         mito_path = path.with_name(path.stem + '_mito_segm.tiff')
         save_img(mito_path, mito_segm, axes=axes, create_dir=create_dir)
+
+
+def blob_detection(foci_stack):
+    
+    ndims = len(foci_stack.shape)
+    if ndims == 4:
+        blobs = [blob_detection(stack) for stack in foci_stack]
+    elif ndims < 4:
+        blobs = blob_log(foci_stack, min_sigma=6, max_sigma=8, num_sigma=4, threshold=40)
+    else:
+        raise ValueError('Too many dimensions in stack.')
+
+    return blobs
+
+def filter_with_blobs(foci_labeled, blobs):
+
+    labels = [foci_labeled[int(this_blob[0]), int(this_blob[1])] for this_blob in blobs]
+
+    foci_filtered = np.zeros_like(foci_labeled, dtype=int)
+    for correct in labels:
+        if correct == 0:
+            continue
+        foci_filtered[foci_labeled == correct] = int(correct)
+
+    return foci_filtered
