@@ -203,20 +203,41 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
 
 
 def blob_detection(foci_stack):
-    
+
     ndims = len(foci_stack.shape)
     if ndims == 4:
         blobs = [blob_detection(stack) for stack in foci_stack]
     elif ndims < 4:
-        blobs = blob_log(foci_stack, min_sigma=6, max_sigma=8, num_sigma=4, threshold=40)
+        foci_stack = np.concatenate([foci_stack,
+                                  np.zeros((1, ) + foci_stack.shape[1:])]
+                                    )  # add zeros in case cell is close to upper or lower limit
+        blobs = blob_log(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=40)
+        blobs = [blob for blob in blobs if blob[0] < len(foci_stack)-1]
     else:
         raise ValueError('Too many dimensions in stack.')
 
     return blobs
 
-def filter_with_blobs(foci_labeled, blobs):
 
-    labels = [foci_labeled[int(this_blob[0]), int(this_blob[1])] for this_blob in blobs]
+def remove_big_objects(stack, max_size):
+
+    mark_for_deletion = []
+    for region in regionprops(stack):
+        if region.area > max_size:
+            mark_for_deletion.append(region.label)
+
+    for label in mark_for_deletion:
+        stack[stack == label] = 0
+
+    return stack
+
+
+def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
+
+    if foci_filter_size is not None:
+        foci_labeled = remove_big_objects(foci_labeled, foci_filter_size)
+
+    labels = [foci_labeled[int(this_blob[0]), int(this_blob[1]), int(this_blob[2])] for this_blob in blobs]
 
     foci_filtered = np.zeros_like(foci_labeled, dtype=int)
     for correct in labels:
