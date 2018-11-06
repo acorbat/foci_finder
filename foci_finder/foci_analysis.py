@@ -202,7 +202,7 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
         save_img(mito_path, mito_segm, axes=axes, create_dir=create_dir)
 
 
-def blob_detection(foci_stack):
+def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=40):
     """Applies skimage blob_log to the 3D stack. Considers image dimensions as TZYX."""
 
     ndims = len(foci_stack.shape)
@@ -212,7 +212,7 @@ def blob_detection(foci_stack):
         foci_stack = np.concatenate([foci_stack,
                                   np.zeros((1, ) + foci_stack.shape[1:])]
                                     )  # add zeros in case cell is close to upper or lower limit
-        blobs = blob_log(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=40)
+        blobs = blob_log(foci_stack, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma, threshold=threshold)
         blobs = [blob for blob in blobs if blob[0] < len(foci_stack)-1]
     else:
         raise ValueError('Too many dimensions in stack.')
