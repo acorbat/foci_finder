@@ -252,3 +252,21 @@ def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
         foci_filtered[foci_labeled == correct] = int(correct)
 
     return foci_filtered
+
+
+def generate_labeled_from_blobs(blobs, shape):
+    """Generates a labeled image with given shape and using the location of blobs and their radius."""
+    # TODO: Adapt for 3D
+    blob_labeled = np.zeros(shape)
+
+    for blob in blobs:
+        location = blob[:-1]
+        radius = blob[-1] * np.sqrt(2)
+        disk = fa.disk(radius)
+        disk_location = (int(location[0] - disk.shape[0] // 2), int(location[1] - disk.shape[1] // 2))
+        corners = (
+        disk_location[0], disk_location[0] + disk.shape[0], disk_location[1], disk_location[1] + disk.shape[1])
+        if all([corner > 0 for corner in corners]) and all([corner < shape[0] for corner in corners]):
+            blob_labeled[corners[0]:corners[1], corners[2]:corners[3]] += disk
+
+    return fa.label(blob_labeled)
