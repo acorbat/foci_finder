@@ -203,6 +203,7 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
 
 
 def blob_detection(foci_stack):
+    """Applies skimage blob_log to the 3D stack. Considers image dimensions as TZYX."""
 
     ndims = len(foci_stack.shape)
     if ndims == 4:
@@ -220,7 +221,7 @@ def blob_detection(foci_stack):
 
 
 def remove_big_objects(stack, max_size):
-
+    """Removes objects bigger than max_size from labeled stack image."""
     mark_for_deletion = []
     for region in regionprops(stack):
         if region.area > max_size:
@@ -233,6 +234,8 @@ def remove_big_objects(stack, max_size):
 
 
 def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
+    """Checks which labeled region coincide with blobs found in blobs. If foci_filter_size is given, regions bigger than
+    this are previously discarded."""
 
     if foci_filter_size is not None:
         foci_labeled = remove_big_objects(foci_labeled, foci_filter_size)
