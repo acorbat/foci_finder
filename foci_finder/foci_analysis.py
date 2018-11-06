@@ -240,7 +240,10 @@ def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
     if foci_filter_size is not None:
         foci_labeled = remove_big_objects(foci_labeled, foci_filter_size)
 
-    labels = [foci_labeled[int(this_blob[0]), int(this_blob[1]), int(this_blob[2])] for this_blob in blobs]
+    inds = []
+    for blob in blobs:
+        inds.append(tuple([int(this_blob_ind) for this_blob_ind in blob[:-1]]))
+    labels = [foci_labeled[this_inds] for this_inds in inds]
 
     foci_filtered = np.zeros_like(foci_labeled, dtype=int)
     for correct in labels:
