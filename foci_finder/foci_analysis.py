@@ -262,10 +262,10 @@ def generate_labeled_from_blobs(blobs, shape):
     for blob in blobs:
         location = blob[:-1]
         radius = blob[-1] * np.sqrt(2)
-        disk = fa.disk(radius)
-        disk_location = (int(location[0] - disk.shape[0] // 2), int(location[1] - disk.shape[1] // 2))
+        focus = disk(radius)
+        disk_location = (int(location[0] - focus.shape[0] // 2), int(location[1] - focus.shape[1] // 2))
         corners = (
-        disk_location[0], disk_location[0] + disk.shape[0], disk_location[1], disk_location[1] + disk.shape[1])
+        disk_location[0], disk_location[0] + focus.shape[0], disk_location[1], disk_location[1] + focus.shape[1])
         if all([corner > 0 for corner in corners]) and all([corner < shape[0] for corner in corners]):
             blob_labeled[corners[0]:corners[1], corners[2]:corners[3]] += disk
 
