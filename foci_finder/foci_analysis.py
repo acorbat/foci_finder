@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
+from skimage.feature import blob_log
 from img_manager import tifffile as tif
 
 def my_KMeans(stack, clusters=2):
@@ -133,6 +134,7 @@ def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, m
                 mito_closing_disk=0):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
+    # TODO: Add a filter for foci size
     foci_labeled = find_foci(foci_stack)
 
     if subcellular:
@@ -164,6 +166,7 @@ def relabel(labeled, swap):
 
 def save_img(path, stack, axes='YX', create_dir=False):
     """Saves stack as 8 bit integer in tif format."""
+    # TODO: change parameter order
     stack = stack.astype('float32')
 
     # Fill array with new axis
@@ -197,3 +200,73 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
     if mito_segm is not None:
         mito_path = path.with_name(path.stem + '_mito_segm.tiff')
         save_img(mito_path, mito_segm, axes=axes, create_dir=create_dir)
+
+
+def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=40):
+    """Applies skimage blob_log to the 3D stack. Considers image dimensions as TZYX."""
+
+    ndims = len(foci_stack.shape)
+    if ndims == 4:
+        blobs = [blob_detection(stack) for stack in foci_stack]
+    elif ndims < 4:
+        foci_stack = np.concatenate([foci_stack,
+                                  np.zeros((1, ) + foci_stack.shape[1:])]
+                                    )  # add zeros in case cell is close to upper or lower limit
+        blobs = blob_log(foci_stack, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma, threshold=threshold)
+        blobs = [blob for blob in blobs if blob[0] < len(foci_stack)-1]
+    else:
+        raise ValueError('Too many dimensions in stack.')
+
+    return blobs
+
+
+def remove_big_objects(stack, max_size):
+    """Removes objects bigger than max_size from labeled stack image."""
+    mark_for_deletion = []
+    for region in regionprops(stack):
+        if region.area > max_size:
+            mark_for_deletion.append(region.label)
+
+    for label in mark_for_deletion:
+        stack[stack == label] = 0
+
+    return stack
+
+
+def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
+    """Checks which labeled region coincide with blobs found in blobs. If foci_filter_size is given, regions bigger than
+    this are previously discarded."""
+
+    if foci_filter_size is not None:
+        foci_labeled = remove_big_objects(foci_labeled, foci_filter_size)
+
+    inds = []
+    for blob in blobs:
+        inds.append(tuple([int(this_blob_ind) for this_blob_ind in blob[:-1]]))
+    labels = [foci_labeled[this_inds] for this_inds in inds]
+
+    foci_filtered = np.zeros_like(foci_labeled, dtype=int)
+    for correct in labels:
+        if correct == 0:
+            continue
+        foci_filtered[foci_labeled == correct] = int(correct)
+
+    return foci_filtered
+
+
+def generate_labeled_from_blobs(blobs, shape):
+    """Generates a labeled image with given shape and using the location of blobs and their radius."""
+    # TODO: Adapt for 3D
+    blob_labeled = np.zeros(shape)
+
+    for blob in blobs:
+        location = blob[:-1]
+        radius = blob[-1] * np.sqrt(2)
+        focus = disk(radius)
+        disk_location = (int(location[0] - focus.shape[0] // 2), int(location[1] - focus.shape[1] // 2))
+        corners = (
+        disk_location[0], disk_location[0] + focus.shape[0], disk_location[1], disk_location[1] + focus.shape[1])
+        if all([corner > 0 for corner in corners]) and all([corner < shape[0] for corner in corners]):
+            blob_labeled[corners[0]:corners[1], corners[2]:corners[3]] += disk
+
+    return fa.label(blob_labeled)
