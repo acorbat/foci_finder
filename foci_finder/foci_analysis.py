@@ -106,7 +106,7 @@ def find_cell(stack, mask, gaussian_kernel=None):
     return cell_classif
 
 
-def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2, closing_disk=0):
+def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closing_disk=2):
     """Finds mitochondrias in stack in the segmented cell plus foci."""
     dims = len(stack.shape)
     if dims <= 3:
@@ -127,13 +127,13 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2, closin
         mito_classif[np.isnan(mito_classif)] = 0
         mito_classif = mito_classif.astype(bool)
         if dims == 3:
+            mito_classif = np.asarray([binary_closing(this, selem=disk(closing_disk)) for this in mito_classif])
             mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=filter_size)
                                        for this in mito_classif])
-            mito_classif = np.asarray([binary_closing(this, selem=disk(closing_disk)) for this in mito_classif])
             mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
         else:
-            mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=filter_size)
             mito_classif = binary_closing(mito_classif, selem=disk(closing_disk))
+            mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=filter_size)
             mito_classif = binary_opening(mito_classif, selem=disk(opening_disk))
 
     else:
