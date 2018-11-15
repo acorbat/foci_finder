@@ -145,7 +145,7 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closin
 
 
 def segment_all(foci_stack, mito_stack, subcellular=False, foci_LoG_size=None,
-                mito_filter_size=3, mito_opening_disk=2, mito_closing_disk=0):
+                mito_filter_size=4, mito_opening_disk=0, mito_closing_disk=2):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
     # TODO: Add a filter for foci size
