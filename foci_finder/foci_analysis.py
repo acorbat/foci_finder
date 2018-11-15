@@ -30,24 +30,38 @@ def my_KMeans(stack, clusters=2):
     return classif.reshape(stack.shape)
 
 
-def find_foci(stack, LoG_size=None):
+def LoG_normalized_filter(stack, LoG_size):
+    """Normalizes the stack, applies a Laplacian of Gaussian filter and then thresholds it."""
+    filtered = -1 * gaussian_laplace(stack / np.max(stack), LoG_size, mode='nearest')
+    return filtered
+
+
+def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
         if LoG_size is None:
             LoG_size = [2, ] * dims
 
-        filtered = -1 * gaussian_laplace(stack, LoG_size,
-                                         mode='nearest')  # Filter image with LoG (correlates with blobs)
+        filtered = LoG_normalized_filter(stack, LoG_size)  # Filter image with LoG (correlates with blobs)
+        threshold = initial_threshold
+        filtered[filtered < threshold] = np.nan
         classif = my_KMeans(filtered)  # all pixels are handled as list
-        classif = np.concatenate([np.zeros((LoG_size[0] + 1,) + stack.shape[1:]),
-                                  classif,
-                                  np.zeros((LoG_size[0] + 1,) + stack.shape[1:])]
-                                 )  # add zeros in case cell is close to upper or lower limit
-        classif = binary_opening(classif)  # maybe it's unnecessary or a hyper parameter
-        classif = classif[LoG_size[0] + 1:-LoG_size[0] - 1]  # Delete added image.
-
         labeled = label(classif)  # Label segmented stack
+
+        # We can check if the objects found are very big, then too many pizels where taken into account. By changing the
+        # threshold, less pixels will be taken into account and we could actually automatically find the ideal threshold
+        areas = []
+        for region in regionprops(labeled):
+            areas.append(region.area)
+
+        while any(area > max_area for area in areas):
+            threshold *= 2
+            filtered[filtered < threshold] = np.nan
+            labeled = label(my_KMeans(filtered))
+            areas = []
+            for region in regionprops(labeled):
+                areas.append(region.area)
 
     else:
         labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size) for this_stack in stack])
@@ -130,12 +144,12 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=3, opening_disk=2, closin
     return mito_classif
 
 
-def segment_all(foci_stack, mito_stack, subcellular=False, mito_filter_size=3, mito_opening_disk=2,
-                mito_closing_disk=0):
+def segment_all(foci_stack, mito_stack, subcellular=False, foci_LoG_size=None,
+                mito_filter_size=3, mito_opening_disk=2, mito_closing_disk=0):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
     # TODO: Add a filter for foci size
-    foci_labeled = find_foci(foci_stack)
+    foci_labeled = find_foci(foci_stack, LoG_size=foci_LoG_size)
 
     if subcellular:
         cell_segm = np.ones_like(foci_stack)
