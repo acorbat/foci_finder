@@ -1,7 +1,7 @@
 import sys
-sys.path.append('/home/jovyan/libs/img_manager/')
-sys.path.append('/home/jovyan/libs/foci_finder')
-sys.path.append('/home/jovyan/libs/onefilers')
+sys.path.append('/home/jovyan/work/img_manager/')
+sys.path.append('/home/jovyan/work/foci_finder')
+sys.path.append('/home/jovyan/work/onefilers')
 
 import pda
 import pathlib
@@ -12,7 +12,7 @@ from foci_finder import pipelines as pipe
 
 
 ######################## Analyze segmentation
-data_dir = pathlib.Path('/home/jovyan/work/201808_z-stack')
+data_dir = pathlib.Path('/home/jovyan/work/upload')
 
 
 def analyze_file(p, funcs):
@@ -41,9 +41,9 @@ def analyze_file(p, funcs):
     foci_img_labeled = tif.TiffFile(str(foci_labeled_dir))
     foci_labeled = foci_img_labeled.asarray().astype(int)
     cell_img_labeled = tif.TiffFile(str(cell_labeled_dir))
-    cell_segm = cell_img_labeled.asarray().astype(int)
+    cell_segm = cell_img_labeled.asarray().astype(bool)
     mito_img_labeled = tif.TiffFile(str(mito_labeled_dir))
-    mito_segm = mito_img_labeled.asarray().astype(int)
+    mito_segm = mito_img_labeled.asarray().astype(bool)
 
     img = fv.FV1000(str(p))  # Load file
     stack = img.transpose_axes('CZYX')

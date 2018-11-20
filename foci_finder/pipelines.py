@@ -97,7 +97,7 @@ def evaluate_superposition(foci_labeled, cell_segm, mito_segm, N=500, path=None,
 
         # Save cumulative randomization foci position
         save_cum_dir = path.with_name(path.stem + '_cum_rand_foci.tif')
-        fa.save_img(save_cum_dir, cum_sim, axes='ZYX')
+        fa.save_img(save_cum_dir, cum_sim, axes='ZYX', create_dir=True)
 
     return res
 

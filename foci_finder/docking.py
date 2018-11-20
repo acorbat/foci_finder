@@ -39,11 +39,12 @@ def rando(foci_label, cell_mask):
     :return: binary array, M, N, O
     """
     new_foci = np.zeros_like(cell_mask)
-    free = np.copy(cell_mask)
+    free = np.copy(cell_mask).astype(int)
     for region in regionprops(foci_label):
         focus_bbox = region.bbox
         focus_mask = foci_label[focus_bbox[0]:focus_bbox[3], focus_bbox[1]:focus_bbox[4], focus_bbox[2]:focus_bbox[5]]
         focus_mask = focus_mask > 0
+        focus_mask = focus_mask.astype(int)
         P, Q, R = focus_mask.shape
         m, n, o = np.nonzero(mycheck(free, focus_mask))
         if not len(m):
