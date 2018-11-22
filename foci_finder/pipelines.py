@@ -47,18 +47,7 @@ def my_iterator(N, foci_labeled, cell_segm, mito_segm):
         yield i, foci_labeled, cell_segm, mito_segm
 
         
-def evaluate_distance(foci_stack, mito_stack, path=None):
-    # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
-                                                        mito_filter_size=50,
-                                                        mito_opening_disk=1)
-
-    # Reorder foci, must try it
-    foci_labeled = dk.relabel_by_area(foci_labeled)
-
-    if path:
-        fa.save_all(foci_labeled, cell_segm, mito_segm, path)
-
+def evaluate_distance(foci_labeled, mito_segm):
     # calculate pixel superposition
     exp_pix_sup = dk.calculate_superposition(foci_labeled, mito_segm)
     exp_foc_sup = dk.calculate_superposition(foci_labeled, mito_segm, 'label')
@@ -71,23 +60,13 @@ def evaluate_distance(foci_stack, mito_stack, path=None):
     return distances
 
 
-def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_distance=3):
+def evaluate_superposition(foci_labeled, cell_segm, mito_segm, N=500, path=None, max_dock_distance=3):
     """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
     segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
     correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
-    # Find foci, cell and mitochondrias
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
-                                                        mito_filter_size=50,
-                                                        mito_opening_disk=1)
 
     mito_segm = np.asarray([fa.binary_dilation(this, fa.disk(max_dock_distance)) for this in mito_segm])  # Dilate
     # mitochondria to see if foci are close but not superposed
-
-    # Reorder foci, must try it
-    foci_labeled = dk.relabel_by_area(foci_labeled)
-
-    if path:
-        fa.save_all(foci_labeled, cell_segm, mito_segm, path, axes='ZYX')
 
     # calculate pixel superposition
     exp_pix_sup = dk.calculate_superposition(foci_labeled, mito_segm)
@@ -118,26 +97,19 @@ def evaluate_superposition(foci_stack, mito_stack, N=500, path=None, max_dock_di
 
         # Save cumulative randomization foci position
         save_cum_dir = path.with_name(path.stem + '_cum_rand_foci.tif')
-        fa.save_img(save_cum_dir, cum_sim, axes='ZYX')
+        fa.save_img(save_cum_dir, cum_sim, axes='ZYX', create_dir=True)
 
     return res
 
 
-def count_foci(foci_stack, mito_stack, path=None):
+def count_foci(foci_labeled, foci_stack=None):
     """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
      segmentation is saved there. A DataFrame with foci found and their characterizations is returned."""
-    foci_labeled, cell_segm, mito_segm = fa.segment_all(foci_stack, mito_stack,
-                                                        mito_filter_size=50,
-                                                        mito_opening_disk=1)
-
-    if mito_segm is not None:
+    if foci_stack is not None:
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
-                            intensity_image=mito_segm)
+                            intensity_image=foci_stack)
     else:
         df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
-
-    if path:
-        fa.save_all(foci_labeled, cell_segm, mito_segm, path)
 
     return df
 
