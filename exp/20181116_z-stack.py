@@ -5,6 +5,7 @@ sys.path.append('/home/jovyan/work/onefilers')
 
 import pda
 import pathlib
+import pandas as pd
 
 from img_manager import fv1000 as fv
 from img_manager import tifffile as tif
@@ -37,6 +38,12 @@ def analyze_file(p, funcs):
     for i in range(3):
         save_dir = save_dir.joinpath(parts[i])
     save_dir.parent.mkdir(parents=True, exist_ok=True)
+    check_dir = save_dir.with_name(p.stem + '_superposition.pandas')
+
+    if check_dir.exists():
+        df = pd.read_pickle(str(check_dir))
+        print('File already analyzed')
+        return df, None
 
     foci_img_labeled = tif.TiffFile(str(foci_labeled_dir))
     foci_labeled = foci_img_labeled.asarray().astype(int)
