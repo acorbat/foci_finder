@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_laplace, gaussian_filter
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
+from skimage.draw import ellipsoid
 from skimage.feature import blob_log
 from img_manager import tifffile as tif
 
@@ -270,17 +271,33 @@ def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
 
 def generate_labeled_from_blobs(blobs, shape):
     """Generates a labeled image with given shape and using the location of blobs and their radius."""
-    # TODO: Adapt for 3D
     blob_labeled = np.zeros(shape)
 
     for blob in blobs:
         location = blob[:-1]
-        radius = blob[-1] * np.sqrt(2)
-        focus = disk(radius)
-        disk_location = (int(location[0] - focus.shape[0] // 2), int(location[1] - focus.shape[1] // 2))
-        corners = (
-        disk_location[0], disk_location[0] + focus.shape[0], disk_location[1], disk_location[1] + focus.shape[1])
-        if all([corner > 0 for corner in corners]) and all([corner < shape[0] for corner in corners]):
-            blob_labeled[corners[0]:corners[1], corners[2]:corners[3]] += disk
+        if len(shape) == 2:
+            radius = blob[-1] * np.sqrt(2)
+            focus = disk(radius)
+            disk_location = (int(location[0] - focus.shape[0] // 2), int(location[1] - focus.shape[1] // 2))
+            corners = (disk_location[0], disk_location[0] + focus.shape[0],
+                       disk_location[1], disk_location[1] + focus.shape[1])
+            if all([corner > 0 for corner in corners]) and all([corner < shape[0] for corner in corners]):
+                blob_labeled[corners[0]:corners[1], corners[2]:corners[3]] += focus
 
-    return fa.label(blob_labeled)
+        elif len(shape) == 3:
+            radius = blob[-1] * np.sqrt(3)
+            focus = ellipsoid(radius/8, radius, radius)
+            ball_location = (int(location[0] - focus.shape[0] // 2),
+                             int(location[1] - focus.shape[1] // 2),
+                             int(location[2] - focus.shape[2] // 2))
+            corners = (ball_location[0], ball_location[0] + focus.shape[0],
+                       ball_location[1], ball_location[1] + focus.shape[1],
+                       ball_location[2], ball_location[2] + focus.shape[2])
+            if all([corner > 0 for corner in corners]) and \
+                    all([corner < this_shape for corner, this_shape in zip(corners[1::2], shape)]):
+                blob_labeled[corners[0]:corners[1], corners[2]:corners[3], corners[4]:corners[5]] += focus
+
+        else:
+            raise ValueError('Number of dimensions is not allowed, only works with 2 or 3 dimensions')
+
+    return label(blob_labeled)
