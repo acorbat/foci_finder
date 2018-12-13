@@ -37,7 +37,7 @@ def LoG_normalized_filter(stack, LoG_size):
     return filtered
 
 
-def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000):
+def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, many_foci=100):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
@@ -56,7 +56,7 @@ def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000):
         for region in regionprops(labeled):
             areas.append(region.area)
 
-        while any(area > max_area for area in areas):
+        while any(area > max_area for area in areas) or len(areas) > many_foci:
             threshold *= 2
             filtered[filtered < threshold] = np.nan
             labeled = label(my_KMeans(filtered))
