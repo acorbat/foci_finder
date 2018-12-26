@@ -37,7 +37,7 @@ def LoG_normalized_filter(stack, LoG_size):
     return filtered
 
 
-def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, many_foci=100):
+def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, many_foci=40):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
