@@ -37,7 +37,7 @@ def LoG_normalized_filter(stack, LoG_size):
     return filtered
 
 
-def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, many_foci=40):
+def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, many_foci=40, min_area=0):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
@@ -49,6 +49,7 @@ def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, m
         filtered[filtered < threshold] = np.nan
         classif = my_KMeans(filtered)  # all pixels are handled as list
         labeled = label(classif)  # Label segmented stack
+        remove_small_objects(labeled, min_size=min_area, in_place=True)
 
         # We can check if the objects found are very big, then too many pizels where taken into account. By changing the
         # threshold, less pixels will be taken into account and we could actually automatically find the ideal threshold
@@ -60,9 +61,11 @@ def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, m
             threshold *= 2
             filtered[filtered < threshold] = np.nan
             labeled = label(my_KMeans(filtered))
+            remove_small_objects(labeled, min_size=min_area, in_place=True)
             areas = []
             for region in regionprops(labeled):
                 areas.append(region.area)
+
 
     else:
         labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size) for this_stack in stack])
@@ -146,11 +149,12 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closin
 
 
 def segment_all(foci_stack, mito_stack, subcellular=False, foci_LoG_size=None,
-                mito_filter_size=4, mito_opening_disk=0, mito_closing_disk=2):
+                mito_filter_size=4, mito_opening_disk=0, mito_closing_disk=2,
+                many_foci=40, foci_filter_size=0):
     """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
     subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
     # TODO: Add a filter for foci size
-    foci_labeled = find_foci(foci_stack, LoG_size=foci_LoG_size)
+    foci_labeled = find_foci(foci_stack, LoG_size=foci_LoG_size, many_foci=many_foci, min_area=foci_filter_size)
 
     if subcellular:
         cell_segm = np.ones_like(foci_stack)
