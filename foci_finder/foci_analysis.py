@@ -285,7 +285,8 @@ def generate_labeled_from_blobs(blobs, shape):
             disk_location = (int(location[0] - focus.shape[0] // 2), int(location[1] - focus.shape[1] // 2))
             corners = (disk_location[0], disk_location[0] + focus.shape[0],
                        disk_location[1], disk_location[1] + focus.shape[1])
-            if all([corner > 0 for corner in corners]) and all([corner < shape[0] for corner in corners]):
+            if all([corner > 0 for corner in corners]) and \
+                    all([corner < this_shape for corner, this_shape in zip(corners[1::2], shape)]):
                 blob_labeled[corners[0]:corners[1], corners[2]:corners[3]] += focus
 
         elif len(shape) == 3:
