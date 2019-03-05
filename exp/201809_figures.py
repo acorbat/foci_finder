@@ -201,6 +201,23 @@ def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disg
     ax1.get_xaxis().set_visible(False)
     ax1.get_yaxis().set_visible(False)
 
+    # Add scalebar
+    # 1um <-> 12.195122
+    scalebar = AnchoredSizeBar(ax1.transData,
+                               12, '          ', 'lower left',
+                               pad=0.1,
+                               color='white',
+                               frameon=False,
+                               size_vertical=2,
+                               label_top=True)  # ,
+    # fontproperties=fontprops)
+
+    ax1.add_artist(scalebar)
+
+    # Add Timestamp
+    # 1 frame <-> 2.35734
+    plt.annotate('01:29', (5, 10), color='w', fontsize=14)
+
     dx_arrow = -10
     dy_arrow = 20
     for n, particle in enumerate(particles):
@@ -225,6 +242,11 @@ def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disg
     #ax4.set_xlim(cell_borders[2], cell_borders[3])
     ax4.get_xaxis().set_visible(False)
     ax4.get_yaxis().set_visible(False)
+
+
+    # Add Timestamp
+    # 1 frame <-> 2.35734
+    plt.annotate('07:49', (5, 10), color='w', fontsize=14)
 
     for n, particle in enumerate(particles):
         # draw arrows
