@@ -392,3 +392,28 @@ for col in cols_to_normalize:
     savename = col[:]
     col = col + '_normalized'
     plot_curves_and_mean(sel_non_crop, col, savename=savename)
+
+
+def generate_binned_df(df, columns):
+    plot_dfs = []
+    params = ['date', 'condition', 'cell', 'time_step']
+    conditions = {'pre': 'time < 0',
+                  '5 min': 'time < 6 and time > -1',
+                  '10 min': 'time < 11 and time > 6'}
+    for cell_params, this_df in df.groupby(params):
+        for cond_name, condition in conditions.items():
+            cell_dict = {param: [cell_param] for param, cell_param in zip(params, cell_params)}
+            cell_df = pd.DataFrame(cell_dict)
+            cell_df['moment'] = cond_name
+
+            for column in columns:
+                mini_df = this_df.query(condition)
+                cell_df[column] = np.nanmean(mini_df[column].values)
+            plot_dfs.append(cell_df)
+
+    return pd.concat(plot_dfs, ignore_index=True)
+
+
+sns.barplot(x='docked', y='count', hue='moment', data=plot_df)
+plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\barplot_docked.svg',
+            format='svg')
