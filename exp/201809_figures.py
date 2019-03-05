@@ -132,11 +132,12 @@ def fig_cell_tracked(img_path='20180503/cover_3/c1_con_foci_001.oif'):
     plt.show()
 
 
-
-def plot_zoom_cell_with_track_and_mito(grid, img, lims, track, color='r'):
+def plot_zoom_cell_with_track_and_mito(grid, foci_img, mito_img, lims, track, color='r', vs=[50, 250, 200,1300]):
     ax = plt.subplot(grid)
     y, x = track
-    ax.imshow(img)
+    vmin_foci, vmax_foci, vmin_mito, vmax_mito = vs
+    ax.imshow(foci_img, cmap=cmap_foci, vmin=vmin_foci, vmax=vmax_foci)
+    ax.imshow(mito_img, cmap=cmap_mito, vmin=vmin_mito, vmax=vmax_mito, alpha=0.8)
     ax.plot(x, y, c=color, lw=1)
     ax.set_ylim([lims[1], lims[0]])
     ax.set_xlim([lims[2], lims[3]])
@@ -145,8 +146,8 @@ def plot_zoom_cell_with_track_and_mito(grid, img, lims, track, color='r'):
 
 
 def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_1C\for_video_c01_001.tif'):
-    imgs_save_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/201809_figures/')
-    img_save_dir = imgs_save_dir.joinpath('fig_1/fig_1.svg')
+    imgs_save_dir = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_1C')
+    img_save_dir = imgs_save_dir.joinpath('fig_1C.svg')
     img = tif.TiffFile(str(img_path))
     stack = img.asarray().astype(float)
     foci_stack = stack[:, 0]
@@ -157,28 +158,30 @@ def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disg
     particles_to_merge = [2, 7, 8, 19]
     for i in df.index:
         if df.particle[i] in particles_to_merge:
-            print('merging')
             df.at[i, 'particle'] = 2
 
     particles = [2, 3]
-    color = {2: 'b',
+    color = {2: '#1f77b4',
              3: 'orange'}
 
-    cmap_foci = LinearSegmentedColormap.from_list('cmap_foci', ['black', 'green'])
-    cmap_mito = LinearSegmentedColormap.from_list('cmap_mito', ['black', 'magenta'])
+    cmap_mito = LinearSegmentedColormap.from_list('cmap_mito', ['black', (255/255, 4/255, 255/255)])
+    cmap_mito.set_under('k', alpha=0)
+    cmap_foci = LinearSegmentedColormap.from_list('cmap_foci', ['black', (22 / 255, 255 / 255, 22 / 255)])
+    cmap_foci.set_under('k', alpha=1)
 
     trajectories = {}
     lims = {}
     for particle in particles:
         particle_df = df.query('particle == ' + str(particle))
-        trajectories[particle] = [particle_df.Y.values, particle_df.X.values]
+        trajectories[particle] = np.asarray([particle_df.Y.values, particle_df.X.values])
 
-        lims[particle] = (np.nanmin(trajectories[particle][0] - 8),
-                          np.nanmin(trajectories[particle][0] + 18),
-                          np.nanmin(trajectories[particle][1] - 8),
-                          np.nanmin(trajectories[particle][1] + 18))
+        lims[particle] = (60, 127, 30, 127)
+            # (np.clip(np.nanmin(trajectories[particle][0]) - 8, 0, stack.shape[0]),
+            #               np.clip(np.nanmax(trajectories[particle][0]) + 8, 0, stack.shape[0]),
+            #               np.clip(np.nanmin(trajectories[particle][1]) - 8, 0, stack.shape[0]),
+            #               np.clip(np.nanmax(trajectories[particle][1]) + 8, 0, stack.shape[0]))
 
-    cell_borders = (50, 480, 0, stack.shape[-1]-1)
+    #cell_borders = (0, 0, stack.shape[0]-1, stack.shape[-1]-1)
 
     fig = plt.figure(figsize=(6.4, 4))
 
@@ -186,14 +189,15 @@ def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disg
     #gs0.update(left=0.05, right=0.95)
 
     # Plot first frame
-    gs00 = gridspec.GridSpecFromSubplotSpec(4, 3, subplot_spec=gs0[0], wspace=0.05, hspace=0.0)
+    first_frame = 39
+    gs00 = gridspec.GridSpecFromSubplotSpec(4, 2, subplot_spec=gs0[0], wspace=0.05, hspace=0.05)
 
     # full image
     ax1 = plt.subplot(gs00[1:, :])
-    ax1.imshow(mito_stack[0], cmap=cmap_mito)
-    ax1.imshow(foci_stack[0], cmap=cmap_foci, alpha=0.5)
-    ax1.set_ylim([cell_borders[1], cell_borders[0]])
-    ax1.set_xlim(cell_borders[2], cell_borders[3])
+    ax1.imshow(foci_stack[first_frame], cmap=cmap_foci, vmin=50, vmax=300)
+    ax1.imshow(mito_stack[first_frame], cmap=cmap_mito, vmin=250, vmax=1300, alpha=0.8)
+    #ax1.set_ylim([cell_borders[1], cell_borders[0]])
+    #ax1.set_xlim(cell_borders[2], cell_borders[3])
     ax1.get_xaxis().set_visible(False)
     ax1.get_yaxis().set_visible(False)
 
@@ -201,34 +205,39 @@ def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disg
     dy_arrow = 20
     for n, particle in enumerate(particles):
         # draw arrows
-        ax1.arrow(trajectories[particle][1][0] - dx_arrow + 5, trajectories[particle][0][0] - dy_arrow - 5, dx=dx_arrow,
-                  dy=dy_arrow, head_width=10, head_length=15, fc=color[particle], ec=color[particle],
+        ax1.arrow(trajectories[particle][1][first_frame] - dx_arrow + 5,
+                  trajectories[particle][0][first_frame] - dy_arrow - 5,
+                  dx=dx_arrow, dy=dy_arrow, head_width=10, head_length=15, fc=color[particle], ec=color[particle],
                   length_includes_head=True)
 
         # subplot tracks
-        plot_zoom_cell_with_track(gs00[0, n], foci_stack[0], lims[particle], trajectories[particle], color[particle])
+        plot_zoom_cell_with_track_and_mito(gs00[0, n], foci_stack[first_frame], mito_stack[first_frame],
+                                           lims[particle], trajectories[particle][:, :first_frame], color[particle])
 
     # Plot last frame
-    gs01 = gridspec.GridSpecFromSubplotSpec(4, 3, subplot_spec=gs0[1], wspace=0.05, hspace=0.0)
+    last_frame = -1
+    gs01 = gridspec.GridSpecFromSubplotSpec(4, 2, subplot_spec=gs0[1], wspace=0.05, hspace=0.05)
 
     ax4 = plt.subplot(gs01[1:, :])
-    ax4.imshow(foci_stack[-1])
-    ax4.set_ylim([cell_borders[1], cell_borders[0]])
-    ax4.set_xlim(cell_borders[2], cell_borders[3])
+    ax4.imshow(foci_stack[last_frame], cmap=cmap_foci, vmin=50, vmax=200)
+    ax4.imshow(mito_stack[last_frame], cmap=cmap_mito, vmin=250, vmax=1300, alpha=0.8)
+    #ax4.set_ylim([cell_borders[1], cell_borders[0]])
+    #ax4.set_xlim(cell_borders[2], cell_borders[3])
     ax4.get_xaxis().set_visible(False)
     ax4.get_yaxis().set_visible(False)
 
     for n, particle in enumerate(particles):
         # draw arrows
-        ax4.arrow(trajectories[particle][1][-1] - dx_arrow + 5, trajectories[particle][0][-1] - dy_arrow - 5,
+        ax4.arrow(trajectories[particle][1][last_frame] - dx_arrow + 5, trajectories[particle][0][last_frame] - dy_arrow - 5,
                   dx=dx_arrow, dy=dy_arrow, head_width=10, head_length=15, fc=color[particle], ec=color[particle],
                   length_includes_head=True)
 
         # subplot tracks
-        plot_zoom_cell_with_track(gs01[0, n], foci_stack[-1], lims[particle], trajectories[particle], color[particle])
+        plot_zoom_cell_with_track_and_mito(gs01[0, n], foci_stack[last_frame], mito_stack[last_frame],
+                                           lims[particle], trajectories[particle], color[particle], vs=[50, 200, 250, 1300])
 
     plt.tight_layout()
-    #plt.savefig(str(img_save_dir), format='svg')
+    plt.savefig(str(img_save_dir), format='svg')
     plt.show()
 
 df_dir = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\results\processed_non_cropped.pandas')
@@ -350,7 +359,7 @@ def normalize_column(df, column):
     return df
 
 
-def plot_curves_and_mean(df, column):
+def plot_curves_and_mean(df, column, savename=None):
     time_cropped_df = df.query('time < 10.01')
 
     plt.figure(figsize=(3.2, 3.2))
@@ -362,6 +371,14 @@ def plot_curves_and_mean(df, column):
         this_times = this_df['time'].values
 
         plt.plot(this_times, this_curve, 'k', alpha=0.5)
+        plt.xlabel('Time (min.)')
+        plt.ylabel('Normalized Quantity')
+        plt.title(column.split('_')[0])
+
+    if savename is not None:
+        img_save_dir = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
+        img_save_dir = img_save_dir.joinpath(savename + '.svg')
+        plt.savefig(str(img_save_dir), format='svg')
 
 
 sel_non_crop = add_categories(sel_non_crop, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
@@ -370,3 +387,8 @@ sel_non_crop = add_categories(sel_non_crop, 'distances', 0.3, low_col_name='dock
 cols_to_normalize = ['small', 'big', 'docked', 'loose']
 for col in cols_to_normalize:
     sel_non_crop = normalize_column(sel_non_crop, col)
+
+for col in cols_to_normalize:
+    savename = col[:]
+    col = col + '_normalized'
+    plot_curves_and_mean(sel_non_crop, col, savename=savename)
