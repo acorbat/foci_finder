@@ -10,6 +10,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes,
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 from matplotlib import gridspec
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.colors import LinearSegmentedColormap
 
 from img_manager import oiffile as oif
 from img_manager import tifffile as tif
@@ -129,3 +130,243 @@ def fig_cell_tracked(img_path='20180503/cover_3/c1_con_foci_001.oif'):
     plt.tight_layout()
     plt.savefig(str(img_save_dir), format='svg')
     plt.show()
+
+
+
+def plot_zoom_cell_with_track_and_mito(grid, img, lims, track, color='r'):
+    ax = plt.subplot(grid)
+    y, x = track
+    ax.imshow(img)
+    ax.plot(x, y, c=color, lw=1)
+    ax.set_ylim([lims[1], lims[0]])
+    ax.set_xlim([lims[2], lims[3]])
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False)
+
+
+def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_1C\for_video_c01_001.tif'):
+    imgs_save_dir = pathlib.Path('/mnt/data/Laboratorio/uVesiculas/201809_figures/')
+    img_save_dir = imgs_save_dir.joinpath('fig_1/fig_1.svg')
+    img = tif.TiffFile(str(img_path))
+    stack = img.asarray().astype(float)
+    foci_stack = stack[:, 0]
+    mito_stack = stack[:, 1]
+
+    df, particle_labeled = track_stack(foci_stack)
+
+    particles_to_merge = [2, 7, 8, 19]
+    for i in df.index:
+        if df.particle[i] in particles_to_merge:
+            print('merging')
+            df.at[i, 'particle'] = 2
+
+    particles = [2, 3]
+    color = {2: 'b',
+             3: 'orange'}
+
+    cmap_foci = LinearSegmentedColormap.from_list('cmap_foci', ['black', 'green'])
+    cmap_mito = LinearSegmentedColormap.from_list('cmap_mito', ['black', 'magenta'])
+
+    trajectories = {}
+    lims = {}
+    for particle in particles:
+        particle_df = df.query('particle == ' + str(particle))
+        trajectories[particle] = [particle_df.Y.values, particle_df.X.values]
+
+        lims[particle] = (np.nanmin(trajectories[particle][0] - 8),
+                          np.nanmin(trajectories[particle][0] + 18),
+                          np.nanmin(trajectories[particle][1] - 8),
+                          np.nanmin(trajectories[particle][1] + 18))
+
+    cell_borders = (50, 480, 0, stack.shape[-1]-1)
+
+    fig = plt.figure(figsize=(6.4, 4))
+
+    gs0 = gridspec.GridSpec(1, 2)
+    #gs0.update(left=0.05, right=0.95)
+
+    # Plot first frame
+    gs00 = gridspec.GridSpecFromSubplotSpec(4, 3, subplot_spec=gs0[0], wspace=0.05, hspace=0.0)
+
+    # full image
+    ax1 = plt.subplot(gs00[1:, :])
+    ax1.imshow(mito_stack[0], cmap=cmap_mito)
+    ax1.imshow(foci_stack[0], cmap=cmap_foci, alpha=0.5)
+    ax1.set_ylim([cell_borders[1], cell_borders[0]])
+    ax1.set_xlim(cell_borders[2], cell_borders[3])
+    ax1.get_xaxis().set_visible(False)
+    ax1.get_yaxis().set_visible(False)
+
+    dx_arrow = -10
+    dy_arrow = 20
+    for n, particle in enumerate(particles):
+        # draw arrows
+        ax1.arrow(trajectories[particle][1][0] - dx_arrow + 5, trajectories[particle][0][0] - dy_arrow - 5, dx=dx_arrow,
+                  dy=dy_arrow, head_width=10, head_length=15, fc=color[particle], ec=color[particle],
+                  length_includes_head=True)
+
+        # subplot tracks
+        plot_zoom_cell_with_track(gs00[0, n], foci_stack[0], lims[particle], trajectories[particle], color[particle])
+
+    # Plot last frame
+    gs01 = gridspec.GridSpecFromSubplotSpec(4, 3, subplot_spec=gs0[1], wspace=0.05, hspace=0.0)
+
+    ax4 = plt.subplot(gs01[1:, :])
+    ax4.imshow(foci_stack[-1])
+    ax4.set_ylim([cell_borders[1], cell_borders[0]])
+    ax4.set_xlim(cell_borders[2], cell_borders[3])
+    ax4.get_xaxis().set_visible(False)
+    ax4.get_yaxis().set_visible(False)
+
+    for n, particle in enumerate(particles):
+        # draw arrows
+        ax4.arrow(trajectories[particle][1][-1] - dx_arrow + 5, trajectories[particle][0][-1] - dy_arrow - 5,
+                  dx=dx_arrow, dy=dy_arrow, head_width=10, head_length=15, fc=color[particle], ec=color[particle],
+                  length_includes_head=True)
+
+        # subplot tracks
+        plot_zoom_cell_with_track(gs01[0, n], foci_stack[-1], lims[particle], trajectories[particle], color[particle])
+
+    plt.tight_layout()
+    #plt.savefig(str(img_save_dir), format='svg')
+    plt.show()
+
+df_dir = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\results\processed_non_cropped.pandas')
+df = pd.read_pickle(str(df_dir))
+
+sel_df = df.query('date == "20181109" and condition == "SAG_2" and cell == "cell_03"')
+sel_df['foci_count'] = sel_df.area_labeled.apply(len)
+
+
+def add_categories(df, column, separating_value, low_col_name=None, high_col_name=None):
+    lower = []
+    higher = []
+
+    for vals in df[column].values:
+        lower.append(np.sum(vals < separating_value))
+        higher.append(np.sum(vals > separating_value))
+
+    if low_col_name is not None:
+        df[low_col_name] = lower
+    if high_col_name is not None:
+        df[high_col_name] = higher
+
+    return df
+
+
+smalls = []
+bigs = []
+
+for areas in sel_df.area_labeled.values:
+    smalls.append(np.sum(areas < 0.2))
+    bigs.append(np.sum(areas > 0.2))
+
+sel_df['small_foci'] = smalls
+sel_df['big_foci'] = bigs
+
+plot_dict = {'moment': ['pre', '5 min', '10 min'] * 2,
+             'count': bigs[1:4] + smalls[1:4],
+             'size' : ['big'] *3 + ['small'] * 3}
+plot_df = pd.DataFrame(plot_dict)
+
+sns.barplot(x='size',  y='count', hue='moment', data=plot_df)
+plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\barplot.svg', format='svg')
+
+sel_df = df.query('date == "20181109" and condition == "SAG_2" and cell == "cell_03"')
+sel_df['foci_count'] = sel_df.distances.apply(len)
+
+dockeds = []
+looses = []
+
+for distance in sel_df.distances.values:
+    dockeds.append(np.sum(distance < 0.3))
+    looses.append(np.sum(distance >= 0.3))
+
+sel_df['docked'] = dockeds
+sel_df['loose'] = looses
+
+plot_dict = {'moment': ['pre', '5 min', '10 min'] * 2,
+             'count': dockeds[1:4] + looses[1:4],
+             'docked': ['docked'] *3 + ['loose'] * 3}
+plot_df = pd.DataFrame(plot_dict)
+
+sns.barplot(x='docked',  y='count', hue='moment', data=plot_df)
+plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\barplot_docked.svg', format='svg')
+
+decreasing_cells = [('20181109', 'SAG', 'cell_03'),
+                    ('20181109', 'SAG_2', 'cell_03'),
+                    ('20181212', 'SAG_2', 'cell_01'),
+                    ('20181212', 'SAG_2', 'cell_03'),
+                    ('20181221', 'SAG_2', 'cell_01'),
+                    ('20180118', 'SAG', 'cell_03'),
+                    ('20180124', 'SAG_2', 'cell_01'),
+                    ('20180124', 'SAG_2', 'cell_02'),
+                    ('20180131', 'MET', 'cell_03'),
+                    ('20180131', 'MET_2', 'cell_02')]
+
+decreasing_cells_cropped = [('20180118', 'SAG_2', 'cell_01', 'cell_2.tif'),
+                            ('20180124', 'SAG', 'cell_02', 'cell_1.tif'),
+                            ('20180129', 'SAG', 'cell_01', 'cell_1.tif'),
+                            ('20180131', 'MET_2', 'cell_03', 'cell_1.tif')]
+
+
+DATA_PATH = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\results')
+non_cropped_dir = DATA_PATH.joinpath('processed_non_cropped.pandas')
+cropped_dir = DATA_PATH.joinpath('cropped.pandas')
+
+df_non_crop = pd.read_pickle(str(non_cropped_dir))
+df_crop = pd.read_pickle(str(cropped_dir))
+
+sel_non_crop = []
+for cell_param in decreasing_cells:
+    this_sel = df_non_crop.query('date == "%s" and condition == "%s" and cell == "%s"' % cell_param)
+    sel_non_crop.append(this_sel)
+
+sel_non_crop = pd.concat(sel_non_crop, ignore_index=True)
+sel_non_crop['time_step'] = 'cell_1.tiff'
+
+sel_crop = []
+for cell_param in decreasing_cells_cropped:
+    this_sel = df_non_crop.query('date == "%s" and condition == "%s" and cell == "%s" and time_step == "%s"' % cell_param)
+    sel_crop.append(this_sel)
+
+sel_crop = pd.concat(sel_crop, ignore_index=True)
+
+sel_non_crop = add_categories(sel_non_crop, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
+sel_non_crop = add_categories(sel_non_crop, 'distances', 0.2, low_col_name='docked', high_col_name='loose')
+
+
+def normalize_column(df, column):
+    df[column + '_normalized'] = np.nan
+    for cell_params, this_df in df.groupby(['date', 'condition', 'cell', 'time_step']):
+        pre_mean_val = np.mean(this_df.query('time < 0')[column].values)
+
+        if pre_mean_val == 0:
+            continue
+
+        for ind in this_df.index:
+            df.at[ind, column + '_normalized'] = df.at[ind, column] / pre_mean_val
+
+    return df
+
+
+def plot_curves_and_mean(df, column):
+    time_cropped_df = df.query('time < 10.01')
+
+    plt.figure(figsize=(3.2, 3.2))
+
+    curves = []
+    times = []
+    for cell_params, this_df in time_cropped_df.groupby(['date', 'condition', 'cell', 'time_step']):
+        this_curve = this_df[column].values
+        this_times = this_df['time'].values
+
+        plt.plot(this_times, this_curve, 'k', alpha=0.5)
+
+
+sel_non_crop = add_categories(sel_non_crop, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
+sel_non_crop = add_categories(sel_non_crop, 'distances', 0.3, low_col_name='docked', high_col_name='loose')
+
+cols_to_normalize = ['small', 'big', 'docked', 'loose']
+for col in cols_to_normalize:
+    sel_non_crop = normalize_column(sel_non_crop, col)
