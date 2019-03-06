@@ -329,21 +329,21 @@ decreasing_cells = [('20181109', 'SAG', 'cell_03'),
                     ('20181212', 'SAG_2', 'cell_01'),
                     ('20181212', 'SAG_2', 'cell_03'),
                     ('20181221', 'SAG_2', 'cell_01'),
-                    ('20180118', 'SAG', 'cell_03'),
-                    ('20180124', 'SAG_2', 'cell_01'),
-                    ('20180124', 'SAG_2', 'cell_02'),
-                    ('20180131', 'MET', 'cell_03'),
-                    ('20180131', 'MET_2', 'cell_02')]
+                    ('20190118', 'SAG', 'cell_03'),
+                    ('20190124', 'SAG_2', 'cell_01'),
+                    ('20190124', 'SAG_2', 'cell_02'),
+                    ('20190131', 'MET', 'cell_03'),
+                    ('20190131', 'MET_2', 'cell_02')]
 
-decreasing_cells_cropped = [('20180118', 'SAG_2', 'cell_01', 'cell_2.tif'),
-                            ('20180124', 'SAG', 'cell_02', 'cell_1.tif'),
-                            ('20180129', 'SAG', 'cell_01', 'cell_1.tif'),
-                            ('20180131', 'MET_2', 'cell_03', 'cell_1.tif')]
+decreasing_cells_cropped = [('20190118', 'SAG_2', 'cell_01', 'cell_2.tif'),
+                            ('20190124', 'SAG', 'cell_02', 'cell_1.tif'),
+                            ('20190129', 'SAG', 'cell_01', 'cell_1.tif'),
+                            ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
 
 
 DATA_PATH = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\results')
 non_cropped_dir = DATA_PATH.joinpath('processed_non_cropped.pandas')
-cropped_dir = DATA_PATH.joinpath('cropped.pandas')
+cropped_dir = DATA_PATH.joinpath('processed_cropped.pandas')
 
 df_non_crop = pd.read_pickle(str(non_cropped_dir))
 df_crop = pd.read_pickle(str(cropped_dir))
@@ -354,7 +354,7 @@ for cell_param in decreasing_cells:
     sel_non_crop.append(this_sel)
 
 sel_non_crop = pd.concat(sel_non_crop, ignore_index=True)
-sel_non_crop['time_step'] = 'cell_1.tiff'
+sel_non_crop['time_step'] = 'N/A'
 
 sel_crop = []
 for cell_param in decreasing_cells_cropped:
@@ -363,8 +363,10 @@ for cell_param in decreasing_cells_cropped:
 
 sel_crop = pd.concat(sel_crop, ignore_index=True)
 
-sel_non_crop = add_categories(sel_non_crop, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
-sel_non_crop = add_categories(sel_non_crop, 'distances', 0.2, low_col_name='docked', high_col_name='loose')
+all_df = pd.concat([sel_non_crop, sel_crop], ignore_index=True)
+
+all_df = add_categories(all_df, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
+all_df = add_categories(all_df, 'distances', 0.2, low_col_name='docked', high_col_name='loose')
 
 
 def normalize_column(df, column):
@@ -403,17 +405,17 @@ def plot_curves_and_mean(df, column, savename=None):
         plt.savefig(str(img_save_dir), format='svg')
 
 
-sel_non_crop = add_categories(sel_non_crop, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
-sel_non_crop = add_categories(sel_non_crop, 'distances', 0.3, low_col_name='docked', high_col_name='loose')
+all_df = add_categories(all_df, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
+all_df = add_categories(all_df, 'distances', 0.3, low_col_name='docked', high_col_name='loose')
 
 cols_to_normalize = ['small', 'big', 'docked', 'loose']
 for col in cols_to_normalize:
-    sel_non_crop = normalize_column(sel_non_crop, col)
+    all_df = normalize_column(all_df, col)
 
 for col in cols_to_normalize:
     savename = col[:]
     col = col + '_normalized'
-    plot_curves_and_mean(sel_non_crop, col, savename=savename)
+    plot_curves_and_mean(all_df, col, savename=savename)
 
 
 def generate_binned_df(df, columns):
@@ -435,7 +437,29 @@ def generate_binned_df(df, columns):
 
     return pd.concat(plot_dfs, ignore_index=True)
 
+binned = generate_binned_df(all_df, cols_to_normalize + [col + '_normalized' for col in cols_to_normalize])
 
-sns.barplot(x='docked', y='count', hue='moment', data=plot_df)
-plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\barplot_docked.svg',
-            format='svg')
+csv_path = DATA_PATH.joinpath('all_decreasing_cells.csv')
+binned_csv_path = DATA_PATH.joinpath('all_decreasing_cells_binned.csv')
+
+all_df.to_csv(str(csv_path))
+binned.to_csv(str(binned_csv_path))
+
+
+def plot_and_save_binned(df, col_a, col_b, savename):
+    dockeds = df[['moment', col_a]].copy()
+    dockeds.rename(columns={col_a: 'counts'}, inplace=True)
+    dockeds['state'] = col_a.split('_')[0]
+    looses = df[['moment', col_b]].copy()
+    looses.rename(columns={col_b: 'counts'}, inplace=True)
+    looses['state'] = col_b.split('_')[0]
+    plot_df = pd.concat([dockeds, looses])
+
+    sns.barplot(x='state', y='counts', hue='moment', data=plot_df)
+    save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
+    save_path = save_path.joinpath(savename + '.svg')
+    plt.savefig(str(save_path), format='svg')
+    plt.close()
+
+plot_and_save_binned(binned, 'docked_normalized', 'loose_normalized', 'hist_docked')
+plot_and_save_binned(binned, 'small_normalized', 'big_normalized', 'hist_size')
