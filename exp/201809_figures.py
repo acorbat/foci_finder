@@ -268,23 +268,6 @@ df = pd.read_pickle(str(df_dir))
 sel_df = df.query('date == "20181109" and condition == "SAG_2" and cell == "cell_03"')
 sel_df['foci_count'] = sel_df.area_labeled.apply(len)
 
-
-def add_categories(df, column, separating_value, low_col_name=None, high_col_name=None):
-    lower = []
-    higher = []
-
-    for vals in df[column].values:
-        lower.append(np.sum(vals < separating_value))
-        higher.append(np.sum(vals > separating_value))
-
-    if low_col_name is not None:
-        df[low_col_name] = lower
-    if high_col_name is not None:
-        df[high_col_name] = higher
-
-    return df
-
-
 smalls = []
 bigs = []
 
@@ -326,19 +309,35 @@ plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\f
 
 decreasing_cells = [('20181109', 'SAG', 'cell_03'),
                     ('20181109', 'SAG_2', 'cell_03'),
-                    ('20181212', 'SAG_2', 'cell_01'),
-                    ('20181212', 'SAG_2', 'cell_03'),
+                    #('20181212', 'SAG_2', 'cell_01'),
+                    #('20181212', 'SAG_2', 'cell_03'),
                     ('20181221', 'SAG_2', 'cell_01'),
                     ('20190118', 'SAG', 'cell_03'),
-                    ('20190124', 'SAG_2', 'cell_01'),
-                    ('20190124', 'SAG_2', 'cell_02'),
+                    #reanalyze('20190124', 'SAG_2', 'cell_01'),
+                    #reanalyze('20190124', 'SAG_2', 'cell_02'),
                     ('20190131', 'MET', 'cell_03'),
                     ('20190131', 'MET_2', 'cell_02')]
 
-decreasing_cells_cropped = [('20190118', 'SAG_2', 'cell_01', 'cell_2.tif'),
+decreasing_cells_cropped = [#('20190118', 'SAG_2', 'cell_01', 'cell_2.tif'),
                             ('20190124', 'SAG', 'cell_02', 'cell_1.tif'),
                             ('20190129', 'SAG', 'cell_01', 'cell_1.tif'),
                             ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
+
+
+def add_categories(df, column, separating_value, low_col_name=None, high_col_name=None):
+    lower = []
+    higher = []
+
+    for vals in df[column].values:
+        lower.append(np.sum(vals < separating_value))
+        higher.append(np.sum(vals > separating_value))
+
+    if low_col_name is not None:
+        df[low_col_name] = lower
+    if high_col_name is not None:
+        df[high_col_name] = higher
+
+    return df
 
 
 DATA_PATH = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\results')
@@ -358,12 +357,15 @@ sel_non_crop['time_step'] = 'N/A'
 
 sel_crop = []
 for cell_param in decreasing_cells_cropped:
-    this_sel = df_non_crop.query('date == "%s" and condition == "%s" and cell == "%s" and time_step == "%s"' % cell_param)
+    this_sel = df_crop.query('date == "%s" and condition == "%s" and cell == "%s" and time_step == "%s"' % cell_param)
     sel_crop.append(this_sel)
 
 sel_crop = pd.concat(sel_crop, ignore_index=True)
 
 all_df = pd.concat([sel_non_crop, sel_crop], ignore_index=True)
+
+for i in all_df.query('date == "%s" and condition == "%s" and cell == "%s" and time_step == "%s"' % ('20181221', 'SAG_2', 'cell_01', 'N/A')).index:
+    all_df.drop(i, inplace=True)
 
 all_df = add_categories(all_df, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
 all_df = add_categories(all_df, 'distances', 0.2, low_col_name='docked', high_col_name='loose')
@@ -397,6 +399,7 @@ def plot_curves_and_mean(df, column, savename=None):
         plt.plot(this_times, this_curve, 'k', alpha=0.5)
         plt.xlabel('Time (min.)')
         plt.ylabel('Normalized Quantity')
+        plt.ylim((-0.01, 1.41))
         plt.title(column.split('_')[0])
 
     if savename is not None:
@@ -416,6 +419,7 @@ for col in cols_to_normalize:
     savename = col[:]
     col = col + '_normalized'
     plot_curves_and_mean(all_df, col, savename=savename)
+    plt.close()
 
 
 def generate_binned_df(df, columns):
@@ -463,3 +467,5 @@ def plot_and_save_binned(df, col_a, col_b, savename):
 
 plot_and_save_binned(binned, 'docked_normalized', 'loose_normalized', 'hist_docked')
 plot_and_save_binned(binned, 'small_normalized', 'big_normalized', 'hist_size')
+
+
