@@ -256,11 +256,12 @@ def fig_foci_interacting(img_path=r'C:\Users\corba\Documents\Lab\s_granules\disg
 
         # subplot tracks
         plot_zoom_cell_with_track_and_mito(gs01[0, n], foci_stack[last_frame], mito_stack[last_frame],
-                                           lims[particle], trajectories[particle], color[particle], vs=[50, 200, 250, 1300])
+                                           lims[particle], trajectories[particle][:, first_frame:last_frame], color[particle], vs=[50, 200, 250, 1300])
 
     plt.tight_layout()
     plt.savefig(str(img_save_dir), format='svg')
     plt.show()
+
 
 df_dir = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\results\processed_non_cropped.pandas')
 df = pd.read_pickle(str(df_dir))
@@ -320,8 +321,8 @@ decreasing_cells = [('20181109', 'SAG', 'cell_03'),
 
 decreasing_cells_cropped = [#('20190118', 'SAG_2', 'cell_01', 'cell_2.tif'),
                             ('20190124', 'SAG', 'cell_02', 'cell_1.tif'),
-                            ('20190129', 'SAG', 'cell_01', 'cell_1.tif'),
-                            ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
+                            ('20190129', 'SAG', 'cell_01', 'cell_1.tif')]#,
+                            # reanalyze ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
 
 
 def add_categories(df, column, separating_value, low_col_name=None, high_col_name=None):
@@ -347,6 +348,38 @@ cropped_dir = DATA_PATH.joinpath('processed_cropped.pandas')
 df_non_crop = pd.read_pickle(str(non_cropped_dir))
 df_crop = pd.read_pickle(str(cropped_dir))
 
+
+# Correct delay in timings
+
+for this_params, this_df in df_non_crop.groupby(['date', 'condition', 'cell']):
+    print(this_params)
+    if this_params[2] != 'cell_01':
+        acq_time = this_df.query('time==0').acquisition_date.values[0]
+
+        try:
+            first_cell_acq_time = df_non_crop.query(
+                'date == "%s" and condition == "%s" and cell == "cell_01" and time == 0' % (
+                this_params[:2])).acquisition_date.values[0]
+        except IndexError:
+            print(this_params)
+            print('no cell 01')
+            continue
+
+        time_diff = acq_time - first_cell_acq_time
+        time_diff = time_diff / np.timedelta64(1, 'm')
+        print(time_diff)
+
+        for i in this_df.index:
+            df_non_crop.at[i, 'time'] = df_non_crop.time[i] + time_diff
+
+for this_params, this_df in df_crop.groupby(['date', 'condition', 'cell', 'time_step']):
+    print(this_params)
+    sel_df = df_non_crop.query(('date == "%s" and condition == "%s" and cell == "%s"' % this_params[:-1]))
+    for i in this_df.index:
+        this_sel_df = sel_df.query('acquisition_date == "%s"' % this_df.acquisition_date[i])
+        new_time = this_sel_df.time.values[0]
+        df_crop.at[i, 'time'] = new_time
+
 sel_non_crop = []
 for cell_param in decreasing_cells:
     this_sel = df_non_crop.query('date == "%s" and condition == "%s" and cell == "%s"' % cell_param)
@@ -369,6 +402,7 @@ for i in all_df.query('date == "%s" and condition == "%s" and cell == "%s" and t
 
 all_df = add_categories(all_df, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
 all_df = add_categories(all_df, 'distances', 0.2, low_col_name='docked', high_col_name='loose')
+all_df['total_granules'] = all_df.small + all_df.big
 
 
 def normalize_column(df, column):
@@ -408,10 +442,7 @@ def plot_curves_and_mean(df, column, savename=None):
         plt.savefig(str(img_save_dir), format='svg')
 
 
-all_df = add_categories(all_df, 'area_labeled', 0.2, low_col_name='small', high_col_name='big')
-all_df = add_categories(all_df, 'distances', 0.3, low_col_name='docked', high_col_name='loose')
-
-cols_to_normalize = ['small', 'big', 'docked', 'loose']
+cols_to_normalize = ['small', 'big', 'docked', 'loose', 'total_granules']
 for col in cols_to_normalize:
     all_df = normalize_column(all_df, col)
 
@@ -426,8 +457,8 @@ def generate_binned_df(df, columns):
     plot_dfs = []
     params = ['date', 'condition', 'cell', 'time_step']
     conditions = {'pre': 'time < 0',
-                  '5 min': 'time < 6 and time > -1',
-                  '10 min': 'time < 11 and time > 6'}
+                  '5 min': 'time < 7 and time > 2',
+                  '10 min': 'time < 13 and time > 8'}
     for cell_params, this_df in df.groupby(params):
         for cond_name, condition in conditions.items():
             cell_dict = {param: [cell_param] for param, cell_param in zip(params, cell_params)}
@@ -437,6 +468,7 @@ def generate_binned_df(df, columns):
             for column in columns:
                 mini_df = this_df.query(condition)
                 cell_df[column] = np.nanmean(mini_df[column].values)
+                cell_df[column + '_std'] = np.nanstd(mini_df[column].values)
             plot_dfs.append(cell_df)
 
     return pd.concat(plot_dfs, ignore_index=True)
@@ -446,7 +478,9 @@ binned = generate_binned_df(all_df, cols_to_normalize + [col + '_normalized' for
 csv_path = DATA_PATH.joinpath('all_decreasing_cells.csv')
 binned_csv_path = DATA_PATH.joinpath('all_decreasing_cells_binned.csv')
 
-all_df.to_csv(str(csv_path))
+to_save_df = all_df[['date', 'condition', 'cell', 'time_step', 'time', ] + cols_to_normalize + [col + '_normalized' for col in cols_to_normalize]]
+
+to_save_df.to_csv(str(csv_path))
 binned.to_csv(str(binned_csv_path))
 
 
@@ -468,4 +502,157 @@ def plot_and_save_binned(df, col_a, col_b, savename):
 plot_and_save_binned(binned, 'docked_normalized', 'loose_normalized', 'hist_docked')
 plot_and_save_binned(binned, 'small_normalized', 'big_normalized', 'hist_size')
 
+all_means_dfs = []
+binned['drug'] = binned.condition.apply(lambda x: x.split('_')[0])
+for this_drug, this_df in binned.groupby(['drug']):
+    for this_moment, mini_df in this_df.groupby(['moment']):
+        this_dict = {}
+        for col in cols_to_normalize:
+            this_dict[col] = [np.nanmean(mini_df[col])]
+            this_dict[col + '_normalized'] = [np.nanmean(mini_df[col + '_normalized'])]
+            this_dict[col + '_std'] = [np.nanstd(mini_df[col])]
+            this_dict[col + '_normalized_std'] = [np.nanstd(mini_df[col + '_normalized'])]
+        this_dict['drug'] = this_drug
+        this_dict['moment'] = this_moment
+        all_means_dfs.append(pd.DataFrame(this_dict))
 
+all_means_df = pd.concat(all_means_dfs, ignore_index=True)
+all_means_df.to_csv(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\data\means.csv')
+
+# preguntas de tracking
+
+all_parts = 0
+all_docked = 0
+
+for this_params, this_df in df.groupby(['date', 'condition', 'experiment', 'cell']):
+    sel_df = this_df.query('frame == 0')
+    this_particles = len(sel_df.distance.values)
+    this_docked = np.sum(sel_df.distance.values < 0.3)
+
+    all_parts += this_particles
+    all_docked += this_docked
+    print(this_params)
+    print(this_particles, this_docked)
+
+
+## Preguntas del video de la figura 1c
+
+img_path = r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_1C\for_video_c01_001.tif'
+imgs_save_dir = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_1C')
+img_save_dir = imgs_save_dir.joinpath('fig_vel_specific_video.svg')
+img = tif.TiffFile(str(img_path))
+stack = img.asarray().astype(float)
+foci_stack = stack[:, 0]
+mito_stack = stack[:, 1]
+
+df, particle_labeled = track_stack(foci_stack)
+
+particles_to_merge = [2, 7, 8, 19]
+for i in df.index:
+    if df.particle[i] in particles_to_merge:
+        df.at[i, 'particle'] = 2
+
+particles = [2, 3]
+
+df['time'] = df.frame.values * (469110)/((200 - 1) * 1000)
+df.drop(147, inplace=True)
+
+def add_velocity(df):
+    df = df.sort_values('time')
+    xs = df.X.values * 0.082
+    ys = df.Y.values * 0.082
+    times = df.time.values
+
+    diff_xs = np.diff(xs)
+    diff_ys = np.diff(ys)
+    diff_times = np.diff(times)
+
+    vels = np.sqrt(diff_xs ** 2 + diff_ys ** 2) / diff_times
+
+    df.drop(df.index[0], inplace=True)
+
+    df['velocity'] = vels
+
+    return df
+
+sel_df_a = df.query('particle == 2')
+sel_df_a = add_velocity(sel_df_a)
+sel_df_b = df.query('particle == 3 and time > 90')
+sel_df_b = add_velocity(sel_df_b)
+sel_df = pd.concat([sel_df_a, sel_df_b], ignore_index=True)
+sel_df['particle'] = ['loose' if part == 2 else 'docked' for part in sel_df.particle]
+
+sns.barplot(x='particle', y='velocity', data=sel_df)
+plt.savefig(str(img_save_dir), format='svg')
+
+import scipy.stats as st
+
+print(st.ks_2samp(sel_df_a.velocity.values, sel_df_b.velocity.values))
+print(st.mannwhitneyu(sel_df_a.velocity.values, sel_df_b.velocity.values))
+
+# preguntas de all tracking
+
+df = pd.read_pickle(r'C:\Users\corba\Documents\Lab\s_granules\all_tracking.pandas')
+
+to_delete = [('20180505', 'cover_2_dsam', 'timelapse', 'c1_001.oif')]
+
+for params in to_delete:
+    sel_df = df.query('date == "%s" and condition == "%s" and experiment == "%s" and cell == "%s"'% params)
+    for i in sel_df.index:
+        df.drop(i, inplace=True)
+
+docked_df = df.query('distance < 0.3')
+loose_df = df.query('distance > 0.3')
+
+def add_velocity_to_df(df):
+    df['velocity'] = np.nan
+    df['number'] = np.nan
+    lengths = []
+    count = 1
+    for this_params, this_df in df.groupby(['date', 'condition', 'experiment', 'cell', 'particle']):
+        print(this_params)
+        this_df = this_df.sort_values('time')
+        xs = this_df.X.values
+        ys = this_df.Y.values
+        zs = this_df.Z.values
+        times = this_df.time.values
+
+        diff_xs = np.diff(xs)
+        diff_ys = np.diff(ys)
+        if all(np.isfinite(zs)):
+            diff_zs = np.diff(zs)
+        else:
+            diff_zs = 0
+        diff_times = np.diff(times)
+
+        lengths.append(len(diff_times))
+
+        vels = np.sqrt(diff_xs ** 2 + diff_ys ** 2 + diff_zs ** 2) / diff_times
+
+        for i, vel in zip(this_df.index, vels):
+            df.at[i, 'velocity'] = vel
+            df.at[i, 'number'] = count
+        count += 1
+
+    print(np.nanmean(lengths))
+    return df
+
+docked_df = add_velocity_to_df(docked_df)
+loose_df = add_velocity_to_df(loose_df)
+
+print('Analyzed %i docked particles' % (docked_df.number.max()))
+print('Analyzed %i loose particles' % (loose_df.number.max()))
+
+plot_df_a = docked_df[['time', 'velocity']]
+plot_df_a['state'] = 'docked'
+plot_df_b = loose_df[['time', 'velocity']]
+plot_df_b['state'] = 'loose'
+plot_df = pd.concat([plot_df_a, plot_df_b], ignore_index=True)
+
+sns.barplot(x='state', y='velocity', data=plot_df)
+#plt.savefig(str(img_save_dir), format='svg')
+
+import scipy.stats as st
+
+print(st.ks_2samp(plot_df_a.velocity.values, plot_df.velocity.values))
+print(st.mannwhitneyu(plot_df_a.velocity.values, plot_df.velocity.values))
