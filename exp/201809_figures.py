@@ -308,6 +308,13 @@ plot_df = pd.DataFrame(plot_dict)
 sns.barplot(x='docked',  y='count', hue='moment', data=plot_df)
 plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\barplot_docked.svg', format='svg')
 
+control_cells = [('20181109', 'control', 'cell_01'),
+                 ('20181109', 'control', 'cell_01'),
+                 ('20190131', 'control', 'cell_01')]
+
+control_cells_cropped = [('20190124', 'control', 'cell_01', 'cell_1.tif'),
+                         ('20190124', 'control', 'cell_01', 'cell_2.tif')]
+
 decreasing_cells = [('20181109', 'SAG', 'cell_03'),
                     ('20181109', 'SAG_2', 'cell_03'),
                     #('20181212', 'SAG_2', 'cell_01'),
@@ -353,6 +360,33 @@ df_crop = pd.read_pickle(str(cropped_dir))
 
 for this_params, this_df in df_non_crop.groupby(['date', 'condition', 'cell']):
     print(this_params)
+    if this_params[2] == 'cell_01':
+        acq_times = this_df.query('time<=0').acquisition_date.values
+        first_pos_acq_time = acq_times[-1]
+        last_pre_acq_time = acq_times[-2]
+
+        mid_point = first_pos_acq_time - last_pre_acq_time
+        mid_point = mid_point / np.timedelta64(2, 'm')
+
+        for i in this_df.index:
+            df_non_crop.at[i, 'time'] = df_non_crop.time[i] + mid_point
+
+
+for this_params, this_df in df_crop.groupby(['date', 'condition', 'cell']):
+    print(this_params)
+    if this_params[2] == 'cell_01':
+        acq_times = this_df.query('time<=0').acquisition_date.values
+        first_pos_acq_time = acq_times[-1]
+        last_pre_acq_time = acq_times[-2]
+
+        mid_point = first_pos_acq_time - last_pre_acq_time
+        mid_point = mid_point / np.timedelta64(2, 'm')
+
+        for i in this_df.index:
+            df_crop.at[i, 'time'] = df_crop.time[i] + mid_point
+
+for this_params, this_df in df_non_crop.groupby(['date', 'condition', 'cell']):
+    print(this_params)
     if this_params[2] != 'cell_01':
         acq_time = this_df.query('time==0').acquisition_date.values[0]
 
@@ -361,8 +395,20 @@ for this_params, this_df in df_non_crop.groupby(['date', 'condition', 'cell']):
                 'date == "%s" and condition == "%s" and cell == "cell_01" and time == 0' % (
                 this_params[:2])).acquisition_date.values[0]
         except IndexError:
+
             print(this_params)
             print('no cell 01')
+
+            acq_times = this_df.query('time<=0').acquisition_date.values
+            first_pos_acq_time = acq_times[-1]
+            last_pre_acq_time = acq_times[-2]
+
+            mid_point = first_pos_acq_time - last_pre_acq_time
+            mid_point = mid_point / np.timedelta64(2, 'm')
+
+            for i in this_df.index:
+                df_non_crop.at[i, 'time'] = df_non_crop.time[i] + mid_point
+
             continue
 
         time_diff = acq_time - first_cell_acq_time
@@ -519,6 +565,62 @@ for this_drug, this_df in binned.groupby(['drug']):
 all_means_df = pd.concat(all_means_dfs, ignore_index=True)
 all_means_df.to_csv(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\data\means.csv')
 
+
+## Broken axis plot
+
+f, (ax, ax2) = plt.subplots(1, 2, sharey=True, facecolor='w', gridspec_kw={'width_ratios': [1, 3]})
+
+for cell_params, this_df in all_df.groupby(['date', 'condition', 'cell', 'time_step']):
+    ax.plot(list(this_df.query('time < 0').time.values) + [0, ],
+            list(this_df.query('time < 0').total_granules_normalized.values) + [1,])
+    ax2.plot([0, ] + list(this_df.query('time >= 0').time.values),
+             [1, ] + list(this_df.query('time >= 0').total_granules_normalized.values),
+             label=' '.join(cell_params))
+
+plt.legend()
+ax2.set_xlabel('time (min.)')
+ax.set_ylabel('Normalized Quantity')
+plt.suptitle('Normalized Total Number of Granules')
+# plot the same data on both axes
+
+
+ax.set_xlim(-10,-5)
+ax2.set_xlim(0,60)
+
+# hide the spines between ax and ax2
+ax.spines['right'].set_visible(False)
+ax2.spines['left'].set_visible(False)
+ax.yaxis.tick_left()
+ax.tick_params(labelright='off')
+ax2.yaxis.tick_right()
+
+# This looks pretty good, and was fairly painless, but you can get that
+# cut-out diagonal lines look with just a bit more work. The important
+# thing to know here is that in axes coordinates, which are always
+# between 0-1, spine endpoints are at these locations (0,0), (0,1),
+# (1,0), and (1,1).  Thus, we just need to put the diagonals in the
+# appropriate corners of each of our axes, and so long as we use the
+# right transform and disable clipping.
+
+d = .015 # how big to make the diagonal lines in axes coordinates
+# arguments to pass plot, just so we don't keep repeating them
+kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+d /= 3
+ax.plot((1-d,1+d), (-d,+d), **kwargs)
+ax.plot((1-d,1+d),(1-d,1+d), **kwargs)
+
+kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
+d *= 3
+ax2.plot((-d,+d), (1-d,1+d), **kwargs)
+ax2.plot((-d,+d), (-d,+d), **kwargs)
+
+# What's cool about this is that now if we vary the distance between
+# ax and ax2 via f.subplots_adjust(hspace=...) or plt.subplot_tool(),
+# the diagonal lines will move accordingly, and stay right at the tips
+# of the spines they are 'breaking'
+
+plt.show()
+
 # preguntas de tracking
 
 all_parts = 0
@@ -608,6 +710,7 @@ def add_velocity_to_df(df):
     df['velocity'] = np.nan
     df['number'] = np.nan
     lengths = []
+    durations = []
     count = 1
     for this_params, this_df in df.groupby(['date', 'condition', 'experiment', 'cell', 'particle']):
         print(this_params)
@@ -626,6 +729,9 @@ def add_velocity_to_df(df):
         diff_times = np.diff(times)
 
         lengths.append(len(diff_times))
+        time_length = np.nansum(diff_times)
+        if time_length > 0:
+            durations.append(time_length)
 
         vels = np.sqrt(diff_xs ** 2 + diff_ys ** 2 + diff_zs ** 2) / diff_times
 
@@ -635,6 +741,10 @@ def add_velocity_to_df(df):
         count += 1
 
     print(np.nanmean(lengths))
+    print('mean duration: %f' % np.nanmean(durations))
+    print('median duration: %f' % np.nanmedian(durations))
+    print('percentile 25 duration: %f' % np.nanpercentile(durations, 25))
+    print('percentile 75 duration: %f' % np.nanpercentile(durations, 75))
     return df
 
 docked_df = add_velocity_to_df(docked_df)
