@@ -331,6 +331,9 @@ decreasing_cells_cropped = [#('20190118', 'SAG_2', 'cell_01', 'cell_2.tif'),
                             ('20190129', 'SAG', 'cell_01', 'cell_1.tif')]#,
                             # reanalyze ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
 
+all_cells = control_cells + decreasing_cells
+all_cells_cropped = control_cells_cropped + decreasing_cells_cropped
+
 
 def add_categories(df, column, separating_value, low_col_name=None, high_col_name=None):
     lower = []
@@ -427,7 +430,7 @@ for this_params, this_df in df_crop.groupby(['date', 'condition', 'cell', 'time_
         df_crop.at[i, 'time'] = new_time
 
 sel_non_crop = []
-for cell_param in decreasing_cells:
+for cell_param in all_cells:
     this_sel = df_non_crop.query('date == "%s" and condition == "%s" and cell == "%s"' % cell_param)
     sel_non_crop.append(this_sel)
 
@@ -435,7 +438,7 @@ sel_non_crop = pd.concat(sel_non_crop, ignore_index=True)
 sel_non_crop['time_step'] = 'N/A'
 
 sel_crop = []
-for cell_param in decreasing_cells_cropped:
+for cell_param in all_cells_cropped:
     this_sel = df_crop.query('date == "%s" and condition == "%s" and cell == "%s" and time_step == "%s"' % cell_param)
     sel_crop.append(this_sel)
 
@@ -500,11 +503,13 @@ for col in cols_to_normalize:
 
 
 def generate_binned_df(df, columns):
+    x = [0, 5, 10, 15, 20, 25, 30]
+    end_x = [this + 10 for this in x]
     plot_dfs = []
     params = ['date', 'condition', 'cell', 'time_step']
-    conditions = {'pre': 'time < 0',
-                  '5 min': 'time < 7 and time > 2',
-                  '10 min': 'time < 13 and time > 8'}
+    conditions = {'%s min' % this_x: 'time > %s and time < %s' % (this_x, this_end_x)
+                  for this_x, this_end_x in zip(x, end_x)}
+    conditions['pre'] = 'time < 0'
     for cell_params, this_df in df.groupby(params):
         for cond_name, condition in conditions.items():
             cell_dict = {param: [cell_param] for param, cell_param in zip(params, cell_params)}
@@ -565,6 +570,11 @@ for this_drug, this_df in binned.groupby(['drug']):
 all_means_df = pd.concat(all_means_dfs, ignore_index=True)
 all_means_df.to_csv(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\data\means.csv')
 
+drugs = ['SAG', 'MET', 'control']
+for drug in drugs:
+    this_df = all_means_df.query('drug == "%s"' % drug)
+    plot_and_save_binned(this_df, 'docked_normalized', 'loose_normalized', 'hist_docked_' + drug)
+    plot_and_save_binned(this_df, 'small_normalized', 'big_normalized', 'hist_size_' + drug)
 
 ## Broken axis plot
 
@@ -572,15 +582,17 @@ f, (ax, ax2) = plt.subplots(1, 2, sharey=True, facecolor='w', gridspec_kw={'widt
 
 for cell_params, this_df in all_df.groupby(['date', 'condition', 'cell', 'time_step']):
     ax.plot(list(this_df.query('time < 0').time.values) + [0, ],
-            list(this_df.query('time < 0').total_granules_normalized.values) + [1,])
+            list(this_df.query('time < 0').total_granules_normalized.values) + [1, ],
+            label=' '.join(cell_params))
+
     ax2.plot([0, ] + list(this_df.query('time >= 0').time.values),
              [1, ] + list(this_df.query('time >= 0').total_granules_normalized.values),
              label=' '.join(cell_params))
 
-plt.legend()
+plt.legend(loc=1)
 ax2.set_xlabel('time (min.)')
 ax.set_ylabel('Normalized Quantity')
-plt.suptitle('Normalized Total Number of Granules')
+plt.title('Normalized Total Number of Granules')
 # plot the same data on both axes
 
 
@@ -605,21 +617,24 @@ ax2.yaxis.tick_right()
 d = .015 # how big to make the diagonal lines in axes coordinates
 # arguments to pass plot, just so we don't keep repeating them
 kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
-d /= 3
+
 ax.plot((1-d,1+d), (-d,+d), **kwargs)
 ax.plot((1-d,1+d),(1-d,1+d), **kwargs)
 
 kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
-d *= 3
-ax2.plot((-d,+d), (1-d,1+d), **kwargs)
-ax2.plot((-d,+d), (-d,+d), **kwargs)
+ax2.plot((-d/3,+d/3), (1-d,1+d), **kwargs)
+ax2.plot((-d/3,+d/3), (-d,+d), **kwargs)
 
 # What's cool about this is that now if we vary the distance between
 # ax and ax2 via f.subplots_adjust(hspace=...) or plt.subplot_tool(),
 # the diagonal lines will move accordingly, and stay right at the tips
 # of the spines they are 'breaking'
+plt.tight_layout()
 
-plt.show()
+save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
+save_path = save_path.joinpath('all_curves_plot_with_controls' + '.svg')
+plt.savefig(str(save_path), format='svg')
+plt.close()
 
 # preguntas de tracking
 
