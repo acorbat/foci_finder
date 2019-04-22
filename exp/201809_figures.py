@@ -340,7 +340,7 @@ def add_categories(df, column, separating_value, low_col_name=None, high_col_nam
     higher = []
 
     for vals in df[column].values:
-        lower.append(np.sum(vals < separating_value))
+        lower.append(np.sum(vals <= separating_value))
         higher.append(np.sum(vals > separating_value))
 
     if low_col_name is not None:
@@ -534,6 +534,20 @@ to_save_df = all_df[['date', 'condition', 'cell', 'time_step', 'time', ] + cols_
 to_save_df.to_csv(str(csv_path))
 binned.to_csv(str(binned_csv_path))
 
+# Save all cells separately
+for cell_params, this_df in all_df.groupby(['date', 'condition', 'cell', 'time_step']):
+    save_path = DATA_PATH
+    for this_param in cell_params:
+        if this_param == 'N/A':
+            save_path = save_path.joinpath('NA')
+        else:
+            save_path = save_path.joinpath(this_param)
+        save_path.mkdir(parents=True, exist_ok=True)
+
+    save_path = save_path.joinpath('datos.csv')
+    save_df = this_df[['time', 'docked', 'loose', 'total_granules', 'docked_normalized', 'loose_normalized', 'total_granules_normalized']]
+    save_df.to_csv(str(save_path))
+
 
 def plot_and_save_binned(df, col_a, col_b, savename):
     dockeds = df[['moment', col_a]].copy()
@@ -635,6 +649,80 @@ save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\
 save_path = save_path.joinpath('all_curves_plot_with_controls' + '.svg')
 plt.savefig(str(save_path), format='svg')
 plt.close()
+
+
+#### borrar
+for col in cols_to_normalize + [this_col + '_normalized' for this_col in cols_to_normalize]:
+    f, (ax, ax2) = plt.subplots(1, 2, sharey=True, facecolor='w', gridspec_kw={'width_ratios': [1, 3]})
+
+    for cell_params, this_df in all_df.groupby(['date', 'condition', 'cell', 'time_step']):
+        if cell_params[1] == 'control':
+            color = 'b'
+        elif cell_params[1] == 'SAG':
+            color = 'r'
+        elif cell_params[1] == 'MET':
+            color = 'orange'
+
+        ax.plot(list(this_df.query('time < 0').time.values) + [0, ],
+                list(this_df.query('time < 0')[col].values) + [1, ],
+                color,
+                label=' '.join(cell_params))
+
+        ax2.plot([0, ] + list(this_df.query('time >= 0').time.values),
+                 [1, ] + list(this_df.query('time >= 0')[col].values),
+                 color,
+                 label=' '.join(cell_params))
+
+    plt.legend(loc=1)
+    ax2.set_xlabel('time (min.)')
+    #ax.set_ylabel('Normalized Quantity')
+    #plt.title('Normalized Total Number of Granules')
+    # plot the same data on both axes
+
+
+    ax.set_xlim(-10,-5)
+    ax2.set_xlim(0,60)
+    if 'normalized' in col:
+        plt.ylim((0, 1.2))
+
+    # hide the spines between ax and ax2
+    ax.spines['right'].set_visible(False)
+    ax2.spines['left'].set_visible(False)
+    ax.yaxis.tick_left()
+    ax.tick_params(labelright='off')
+    ax2.yaxis.tick_right()
+
+    # This looks pretty good, and was fairly painless, but you can get that
+    # cut-out diagonal lines look with just a bit more work. The important
+    # thing to know here is that in axes coordinates, which are always
+    # between 0-1, spine endpoints are at these locations (0,0), (0,1),
+    # (1,0), and (1,1).  Thus, we just need to put the diagonals in the
+    # appropriate corners of each of our axes, and so long as we use the
+    # right transform and disable clipping.
+
+    d = .015 # how big to make the diagonal lines in axes coordinates
+    # arguments to pass plot, just so we don't keep repeating them
+    kwargs = dict(transform=ax.transAxes, color='k', clip_on=False)
+
+    ax.plot((1-d,1+d), (-d,+d), **kwargs)
+    ax.plot((1-d,1+d),(1-d,1+d), **kwargs)
+
+    kwargs.update(transform=ax2.transAxes)  # switch to the bottom axes
+    ax2.plot((-d/3,+d/3), (1-d,1+d), **kwargs)
+    ax2.plot((-d/3,+d/3), (-d,+d), **kwargs)
+
+    # What's cool about this is that now if we vary the distance between
+    # ax and ax2 via f.subplots_adjust(hspace=...) or plt.subplot_tool(),
+    # the diagonal lines will move accordingly, and stay right at the tips
+    # of the spines they are 'breaking'
+    plt.tight_layout()
+
+    save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
+    save_path = save_path.joinpath(col + '.png')
+    plt.savefig(str(save_path), format='png')
+    plt.close()
+
+
 
 # preguntas de tracking
 
