@@ -523,11 +523,9 @@ def generate_binned_df(df, columns):
             cell_df = pd.DataFrame(cell_dict)
             cell_df['moment'] = cond_name
 
-            pre_mean_total = np.nanmean(this_df.query('time < 0').total_granules.values)
-
             for column in columns:
                 mini_df = this_df.query(condition)
-                cell_df[column] = np.nansum(mini_df[column].values * pre_mean_total) / pre_mean_total)
+                cell_df[column] = np.nanmean(mini_df[column].values)
                 cell_df[column + '_std'] = np.nanstd(mini_df[column].values)
             plot_dfs.append(cell_df)
 
@@ -586,9 +584,25 @@ binned['drug'] = binned.condition.apply(lambda x: x.split('_')[0])
 for this_drug, this_df in binned.groupby(['drug']):
     for this_moment, mini_df in this_df.groupby(['moment']):
         this_dict = {}
+
+
         for col in cols_to_normalize:
+
+            mini_df['weight'] = np.nan
+            params = ['date', 'condition', 'cell', 'time_step']
+            for this_cell, this_cell_df in mini_df.groupby(params):
+                filter_conditions = [this_param + ' == "' + this_cell_param + '"' for this_cell_param, this_param in
+                                     zip(this_cell, params)]
+                filter_condition = ' and '.join(filter_conditions)
+                filter_condition += ' and moment == " pre"'
+                pre_cell_df = binned.query(filter_condition)
+                weight = 1 #pre_cell_df[col].values[0] / pre_cell_df.total_granules.values[0]
+
+                for i in this_cell_df.index:
+                    mini_df.loc[i, 'weight'] = weight
+
             this_dict[col] = [np.nanmean(mini_df[col])]
-            this_dict[col + '_normalized'] = [np.nanmean(mini_df[col + '_normalized'])]
+            this_dict[col + '_normalized'] = [np.nansum(mini_df[col + '_normalized'].values * mini_df.weight.values) / np.nansum(mini_df.weight.values)]
             this_dict[col + '_std'] = [np.nanstd(mini_df[col])]
             this_dict[col + '_normalized_std'] = [np.nanstd(mini_df[col + '_normalized'])]
         this_dict['drug'] = this_drug
