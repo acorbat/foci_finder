@@ -461,10 +461,10 @@ def normalize_column(df, column):
     for cell_params, this_df in df.groupby(['date', 'condition', 'cell', 'time_step']):
         pre_mean_val = np.mean(this_df.query('time < 0')[column].values)
 
-        if column == 'loose':
-            pre_mean_total = np.mean(this_df.query('time < 0')['total_granules'].values)
-            if pre_mean_val < .19 * pre_mean_total:
-                continue
+        # if column == 'loose':
+        #     pre_mean_total = np.mean(this_df.query('time < 0')['total_granules'].values)
+        #     if pre_mean_val < .19 * pre_mean_total:
+        #         continue
 
         if pre_mean_val == 0:
             continue
@@ -511,7 +511,7 @@ for col in cols_to_normalize:
 
 def generate_binned_df(df, columns):
     x = [0, 5, 10, 15, 20, 25, 30]
-    end_x = [this + 10 for this in x]
+    end_x = [this + 20 for this in x]
     plot_dfs = []
     params = ['date', 'condition', 'cell', 'time_step']
     conditions = {'%02d min' % this_x: 'time > %s and time < %s' % (this_x, this_end_x)
@@ -570,6 +570,7 @@ def plot_and_save_binned(df, col_a, col_b, savename):
     conv['pre'] = ' pre'
     df = plot_df.assign(state_new=plot_df.state.map(conv))
     sns.barplot(x='state', y='counts', hue='moment', data=df)
+    # sns.swarmplot(x='moment', y='counts', hue='state', data=df)
     # df.groupby('moment').plot(kind='bar', x='state', y='counts', yerr='')
     save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
     save_path = save_path.joinpath(savename + '.svg')
@@ -602,7 +603,8 @@ for this_drug, this_df in binned.groupby(['drug']):
                     mini_df.loc[i, 'weight'] = weight
 
             this_dict[col] = [np.nanmean(mini_df[col])]
-            this_dict[col + '_normalized'] = [np.nansum(mini_df[col + '_normalized'].values * mini_df.weight.values) / np.nansum(mini_df.weight.values)]
+            this_dict[col + '_normalized'] = [np.nansum(mini_df[col + '_normalized'].values * mini_df.weight.values) /
+                                              np.nansum(mini_df.weight.values * np.isfinite(mini_df[col + '_normalized'].values))]
             this_dict[col + '_std'] = [np.nanstd(mini_df[col])]
             this_dict[col + '_normalized_std'] = [np.nanstd(mini_df[col + '_normalized'])]
         this_dict['drug'] = this_drug
@@ -617,6 +619,11 @@ for drug in drugs:
     this_df = all_means_df.query('drug == "%s"' % drug)
     plot_and_save_binned(this_df, 'docked_normalized', 'loose_normalized', 'hist_docked_' + drug)
     plot_and_save_binned(this_df, 'small_normalized', 'big_normalized', 'hist_size_' + drug)
+
+for drug in drugs:
+    this_df = binned.query('drug == "%s"' % drug)
+    plot_and_save_binned(this_df, 'docked_normalized', 'loose_normalized', 'barplot_' + drug)
+    plot_and_save_binned(this_df, 'small_normalized', 'big_normalized', 'barplot_size_' + drug)
 
 ## Broken axis plot
 
