@@ -308,14 +308,15 @@ plot_df = pd.DataFrame(plot_dict)
 sns.barplot(x='docked',  y='count', hue='moment', data=plot_df)
 plt.savefig(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\barplot_docked.svg', format='svg')
 
-control_cells = [('20181109', 'control', 'cell_01'),
-                 ('20181109', 'control', 'cell_01'),
-                 ('20190131', 'control', 'cell_01')]
+control_cells = [('20181109', 'control', 'cell_01')]#,
+                 #('20181109', 'control', 'cell_01'),
+                 #('20190131', 'control', 'cell_01')]
 
 control_cells_cropped = [('20190124', 'control', 'cell_01', 'cell_1.tif'),
-                         ('20190124', 'control', 'cell_01', 'cell_2.tif')]
+                         ('20190124', 'control', 'cell_01', 'cell_2.tif'),
+                         ('20190129', 'control', 'cell_04', 'cell_1.tif')]
 
-decreasing_cells = [('20181109', 'SAG', 'cell_03'),
+decreasing_cells = [#('20181109', 'SAG', 'cell_03'),
                     ('20181109', 'SAG_2', 'cell_03'),
                     #('20181212', 'SAG_2', 'cell_01'),
                     #('20181212', 'SAG_2', 'cell_03'),
@@ -323,15 +324,18 @@ decreasing_cells = [('20181109', 'SAG', 'cell_03'),
                     ('20190118', 'SAG', 'cell_03'),
                     #reanalyze('20190124', 'SAG_2', 'cell_01'),
                     #reanalyze('20190124', 'SAG_2', 'cell_02'),
-                    ('20190131', 'MET', 'cell_03'),
-                    ('20190131', 'MET_2', 'cell_02')]
+                    ('20190131', 'MET_2', 'cell_02'),
+                    ('20190131', 'MET', 'cell_03')]#,
+                    #('20190131', 'MET_2', 'cell_02')]
 
 decreasing_cells_cropped = [#('20190118', 'SAG_2', 'cell_01', 'cell_2.tif'),
                             ('20190124', 'SAG', 'cell_02', 'cell_1.tif'),
                             ('20190129', 'SAG', 'cell_01', 'cell_1.tif'),
-                            ('20190131', 'MET', 'cell_02', 'cell_1.tif'),
-                            ('20190131', 'MET', 'cell_02', 'cell_2.tif'),
-                            ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
+                            ('20190129', 'MET', 'cell_04', 'cell_1.tif'),
+                            ('20190131', 'MET', 'cell_01', 'cell_2.tif'),
+                            # no loose('20190131', 'MET', 'cell_02', 'cell_1.tif'),
+                            ('20190131', 'MET', 'cell_02', 'cell_2.tif')] #,
+                            # no loose ('20190131', 'MET_2', 'cell_03', 'cell_1.tif')]
 
 all_cells = control_cells + decreasing_cells
 all_cells_cropped = control_cells_cropped + decreasing_cells_cropped
@@ -509,6 +513,40 @@ for col in cols_to_normalize:
     plt.close()
 
 
+def append_time_binned_column(adf, steps, width):
+    def func(value):
+        if value < 0:
+            return ' pre'
+        for a in steps:
+            if a <= value < a + width:
+                return '%02d min' % a
+        return 'very post'
+
+    return adf.assign(moment=adf.time.apply(func))
+
+
+def append_weighted_values(adf):
+    adf['weight'] = np.nan
+    cols = ['docked_normalized', 'loose_normalized']
+    for col in cols:
+        adf[col + '_weighted'] = np.nan
+        params = ['date', 'condition', 'cell', 'time_step']
+        for this_cell, this_cell_df in adf.groupby(params):
+            pre_cell_df = this_cell_df.query('time < 0')
+            weight = 1#pre_cell_df[col].values[0] / np.nanmean(pre_cell_df.total_granules.values[0]) # pre_cell_df[col].values[0] /
+
+            for i in this_cell_df.index:
+                adf.loc[i, 'weight'] = weight
+
+        for this_moment, this_df in adf.groupby(['moment', 'drug']):
+            weights_sum = np.nansum(this_df.weight.values * np.isfinite(this_df[col].values))
+
+            for i in this_df.index:
+                adf.loc[i, col + '_weighted'] = adf.at[i, col] * adf.loc[i, 'weight'] / weights_sum
+
+    return adf
+
+
 def generate_binned_df(df, columns):
     x = [0, 5, 10, 15, 20, 25, 30]
     end_x = [this + 20 for this in x]
@@ -531,15 +569,19 @@ def generate_binned_df(df, columns):
 
     return pd.concat(plot_dfs, ignore_index=True)
 
-binned = generate_binned_df(all_df, cols_to_normalize + [col + '_normalized' for col in cols_to_normalize])
+#binned = generate_binned_df(all_df, cols_to_normalize + [col + '_normalized' for col in cols_to_normalize])
+
+bdf = append_time_binned_column(all_df, [0, 10, 20, 30], 10)
+bdf['drug'] = bdf.condition.apply(lambda x: x.split('_')[0])
+bdf = append_weighted_values(bdf)
 
 csv_path = DATA_PATH.joinpath('all_decreasing_cells.csv')
 binned_csv_path = DATA_PATH.joinpath('all_decreasing_cells_binned.csv')
 
-to_save_df = all_df[['date', 'condition', 'cell', 'time_step', 'time', ] + cols_to_normalize + [col + '_normalized' for col in cols_to_normalize]]
+#to_save_df = all_df[['date', 'condition', 'cell', 'time_step', 'time', ] + cols_to_normalize + [col + '_normalized' for col in cols_to_normalize]]
 
-to_save_df.to_csv(str(csv_path))
-binned.to_csv(str(binned_csv_path))
+#to_save_df.to_csv(str(csv_path))
+#binned.to_csv(str(binned_csv_path))
 
 # Save all cells separately
 for cell_params, this_df in all_df.groupby(['date', 'condition', 'cell', 'time_step']):
@@ -551,9 +593,9 @@ for cell_params, this_df in all_df.groupby(['date', 'condition', 'cell', 'time_s
             save_path = save_path.joinpath(this_param)
         save_path.mkdir(parents=True, exist_ok=True)
 
-    save_path = save_path.joinpath('datos.csv')
+    save_path = save_path.joinpath('datos.xls')
     save_df = this_df[['time', 'docked', 'loose', 'total_granules', 'docked_normalized', 'loose_normalized', 'total_granules_normalized']]
-    save_df.to_csv(str(save_path))
+    save_df.to_excel(str(save_path))
 
 
 def plot_and_save_binned(df, col_a, col_b, savename):
@@ -565,11 +607,7 @@ def plot_and_save_binned(df, col_a, col_b, savename):
     looses['state'] = col_b.split('_')[0]
     plot_df = pd.concat([dockeds, looses])
 
-    conv = {k: k for k in plot_df.state.unique()}
-    conv['5 min'] = '05 min'
-    conv['pre'] = ' pre'
-    df = plot_df.assign(state_new=plot_df.state.map(conv))
-    sns.barplot(x='state', y='counts', hue='moment', data=df)
+    sns.barplot(x='state', y='counts', hue='moment', data=plot_df, estimator=np.sum, ci='sd')
     # sns.swarmplot(x='moment', y='counts', hue='state', data=df)
     # df.groupby('moment').plot(kind='bar', x='state', y='counts', yerr='')
     save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
@@ -577,11 +615,11 @@ def plot_and_save_binned(df, col_a, col_b, savename):
     plt.savefig(str(save_path), format='svg')
     plt.close()
 
-plot_and_save_binned(binned, 'docked_normalized', 'loose_normalized', 'hist_docked')
-plot_and_save_binned(binned, 'small_normalized', 'big_normalized', 'hist_size')
+plot_and_save_binned(bdf, 'docked_normalized', 'loose_normalized', 'hist_docked')
+plot_and_save_binned(bdf, 'small_normalized', 'big_normalized', 'hist_size')
 
 all_means_dfs = []
-binned['drug'] = binned.condition.apply(lambda x: x.split('_')[0])
+bdf['drug'] = bdf.condition.apply(lambda x: x.split('_')[0])
 for this_drug, this_df in binned.groupby(['drug']):
     for this_moment, mini_df in this_df.groupby(['moment']):
         this_dict = {}
@@ -621,9 +659,25 @@ for drug in drugs:
     plot_and_save_binned(this_df, 'small_normalized', 'big_normalized', 'hist_size_' + drug)
 
 for drug in drugs:
-    this_df = binned.query('drug == "%s"' % drug)
-    plot_and_save_binned(this_df, 'docked_normalized', 'loose_normalized', 'barplot_' + drug)
-    plot_and_save_binned(this_df, 'small_normalized', 'big_normalized', 'barplot_size_' + drug)
+    this_df = bdf.query('drug == "%s"' % drug)
+    plot_and_save_binned(this_df, 'docked_normalized_weighted', 'loose_normalized_weighted', 'barplot_' + drug)
+    # plot_and_save_binned(this_df, 'small_normalized', 'big_normalized', 'barplot_size_' + drug)
+
+
+for drug in drugs:
+    this_df = bdf.query('drug == "%s"' % drug)
+    plt.figure()
+    for cell_params, this_cell in this_df.groupby(params):
+        plt.plot(this_cell.docked.values, this_cell.loose.values, label=' '.join(cell_params))
+        plt.scatter(this_cell.docked.values, this_cell.loose.values, c=this_cell.total_granules_normalized.values)
+    plt.title(drug)
+    plt.xlabel('docked')
+    plt.ylabel('loose')
+    plt.colorbar()
+    plt.legend()
+    plt.show()
+
+
 
 ## Broken axis plot
 
