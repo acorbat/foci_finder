@@ -313,8 +313,8 @@ control_cells = [('20181109', 'control', 'cell_01')]#,
                  #('20190131', 'control', 'cell_01')]
 
 control_cells_cropped = [('20190124', 'control', 'cell_01', 'cell_1.tif'),
-                         ('20190124', 'control', 'cell_01', 'cell_2.tif'),
-                         ('20190129', 'control', 'cell_04', 'cell_1.tif')]
+                         ('20190124', 'control', 'cell_01', 'cell_2.tif')]#,
+                         #('20190129', 'control', 'cell_04', 'cell_1.tif')]
 
 decreasing_cells = [#('20181109', 'SAG', 'cell_03'),
                     ('20181109', 'SAG_2', 'cell_03'),
@@ -575,6 +575,13 @@ bdf = append_time_binned_column(all_df, [0, 10, 20, 30], 10)
 bdf['drug'] = bdf.condition.apply(lambda x: x.split('_')[0])
 bdf = append_weighted_values(bdf)
 
+bdf_excel_path = DATA_PATH.joinpath('all_decreasing_cells_binned.xls')
+cols = ['total_granules', 'docked', 'loose']
+cols += [col + '_normalized' for col in cols]
+to_save = bdf[['date', 'condition', 'cell', 'time_step', 'time', 'moment', 'drug'] + cols]
+to_save.to_excel(str(bdf_excel_path))
+
+
 csv_path = DATA_PATH.joinpath('all_decreasing_cells.csv')
 binned_csv_path = DATA_PATH.joinpath('all_decreasing_cells_binned.csv')
 
@@ -607,7 +614,7 @@ def plot_and_save_binned(df, col_a, col_b, savename):
     looses['state'] = col_b.split('_')[0]
     plot_df = pd.concat([dockeds, looses])
 
-    sns.barplot(x='state', y='counts', hue='moment', data=plot_df, estimator=np.sum, ci='sd')
+    sns.barplot(x='state', y='counts', hue='moment', data=plot_df, estimator=np.sum, ci=66)
     # sns.swarmplot(x='moment', y='counts', hue='state', data=df)
     # df.groupby('moment').plot(kind='bar', x='state', y='counts', yerr='')
     save_path = pathlib.Path(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8')
@@ -619,11 +626,9 @@ plot_and_save_binned(bdf, 'docked_normalized', 'loose_normalized', 'hist_docked'
 plot_and_save_binned(bdf, 'small_normalized', 'big_normalized', 'hist_size')
 
 all_means_dfs = []
-bdf['drug'] = bdf.condition.apply(lambda x: x.split('_')[0])
-for this_drug, this_df in binned.groupby(['drug']):
+for this_drug, this_df in bdf.groupby(['drug']):
     for this_moment, mini_df in this_df.groupby(['moment']):
         this_dict = {}
-
 
         for col in cols_to_normalize:
 
@@ -634,23 +639,32 @@ for this_drug, this_df in binned.groupby(['drug']):
                                      zip(this_cell, params)]
                 filter_condition = ' and '.join(filter_conditions)
                 filter_condition += ' and moment == " pre"'
-                pre_cell_df = binned.query(filter_condition)
+                pre_cell_df = bdf.query(filter_condition)
                 weight = 1 #pre_cell_df[col].values[0] / pre_cell_df.total_granules.values[0]
 
                 for i in this_cell_df.index:
                     mini_df.loc[i, 'weight'] = weight
 
             this_dict[col] = [np.nanmean(mini_df[col])]
+            boots = bootstrap(mini_df[col])
+            this_dict[col + '_bootstrap'] = [ci(boots, 66)]
             this_dict[col + '_normalized'] = [np.nansum(mini_df[col + '_normalized'].values * mini_df.weight.values) /
                                               np.nansum(mini_df.weight.values * np.isfinite(mini_df[col + '_normalized'].values))]
             this_dict[col + '_std'] = [np.nanstd(mini_df[col])]
+            boots = bootstrap(mini_df[col + '_normalized'])
+            this_dict[col + '_normalized_bootstrap'] = [ci(boots, 66)]
             this_dict[col + '_normalized_std'] = [np.nanstd(mini_df[col + '_normalized'])]
         this_dict['drug'] = this_drug
         this_dict['moment'] = this_moment
         all_means_dfs.append(pd.DataFrame(this_dict))
 
 all_means_df = pd.concat(all_means_dfs, ignore_index=True)
-all_means_df.to_csv(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\data\means.csv')
+
+to_save = all_means_df[['drug', 'moment'] + cols + [col + '_std' for col in cols] +
+                       ['total_granules_bootstrap', 'docked_bootstrap', 'loose_bootstrap'] +
+                       ['total_granules_normalized_bootstrap', 'docked_normalized_bootstrap', 'loose_normalized_bootstrap']]
+
+to_save.to_excel(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\data\means.xls')
 
 drugs = ['SAG', 'MET', 'control']
 for drug in drugs:
@@ -678,6 +692,78 @@ for drug in drugs:
     plt.show()
 
 
+
+# stat tests
+import scipy.stats as st
+
+def append_p_val(x, y, class_1, mom_1, class_2, mom_2, dictionary):
+    mannwhitney = st.mannwhitneyu(x, y)
+
+    dictionary['class_granule_1'].append(class_1)
+    dictionary['moment_1'].append(mom_1)
+    dictionary['class_granule_2'].append(class_2)
+    dictionary['moment_2'].append(mom_2)
+    dictionary['p_value'].append(mannwhitney.pvalue)
+
+    return dictionary
+
+kinds = ['docked', 'loose']
+
+for this_drug, this_drug_df in bdf.groupby('drug'):
+    print(this_drug)
+
+    this_p_vals = {'class_granule_1': [],
+               'moment_1': [],
+               'class_granule_2': [],
+               'moment_2': [],
+               'p_value': []}
+
+
+    for kind in kinds:
+
+        x = this_drug_df.query('moment == " pre"')[kind + '_normalized'].values
+        class_granule_1 = kind
+        moment_1 = ' pre'
+        class_granule_2 = kind
+
+        for this_moment, this_df in this_drug_df.groupby('moment'):
+            if this_moment == 'pre':
+                continue
+
+            y = this_df[kind + '_normalized'].values
+            moment_2 = this_moment
+
+            this_p_vals = append_p_val(x, y, class_granule_1, moment_1, class_granule_2, moment_2, this_p_vals)
+
+
+    for this_moment, this_df in this_drug_df.groupby('moment'):
+
+        x = this_df.docked_normalized.values
+        y = this_df.loose_normalized.values
+
+        class_granule_1 = 'docked'
+        moment_1 = this_moment
+        class_granule_2 = 'loose'
+        moment_2 = this_moment
+
+        this_p_vals = append_p_val(x, y, class_granule_1, moment_1, class_granule_2, moment_2, this_p_vals)
+
+    for kind in kinds:
+
+        x = this_drug_df.query('moment == "00 min"')[kind + '_normalized'].values
+        y = this_drug_df.query('moment == "30 min"')[kind + '_normalized'].values
+
+        class_granule_1 = kind
+        moment_1 = '00 min'
+        class_granule_2 = kind
+        moment_2 = '30 min'
+
+        this_p_vals = append_p_val(x, y, class_granule_1, moment_1, class_granule_2, moment_2, this_p_vals)
+
+    p_values_df = pd.DataFrame(this_p_vals)
+    p_values_df = p_values_df[['class_granule_1', 'moment_1', 'class_granule_2', 'moment_2', 'p_value']]
+
+    p_values_df.to_excel(r'C:\Users\corba\Documents\Lab\s_granules\disgregation\unpublished\fig_8\data\p_values_' + this_drug + '.xls')
 
 ## Broken axis plot
 
