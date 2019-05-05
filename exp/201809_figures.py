@@ -571,7 +571,7 @@ def generate_binned_df(df, columns):
 
 #binned = generate_binned_df(all_df, cols_to_normalize + [col + '_normalized' for col in cols_to_normalize])
 
-bdf = append_time_binned_column(all_df, [0, 10, 20, 30], 10)
+bdf = append_time_binned_column(all_df, [0, 20], 20)
 bdf['drug'] = bdf.condition.apply(lambda x: x.split('_')[0])
 bdf = append_weighted_values(bdf)
 
@@ -751,12 +751,12 @@ for this_drug, this_drug_df in bdf.groupby('drug'):
     for kind in kinds:
 
         x = this_drug_df.query('moment == "00 min"')[kind + '_normalized'].values
-        y = this_drug_df.query('moment == "30 min"')[kind + '_normalized'].values
+        y = this_drug_df.query('moment == "20 min"')[kind + '_normalized'].values
 
         class_granule_1 = kind
         moment_1 = '00 min'
         class_granule_2 = kind
-        moment_2 = '30 min'
+        moment_2 = '20 min'
 
         this_p_vals = append_p_val(x, y, class_granule_1, moment_1, class_granule_2, moment_2, this_p_vals)
 
