@@ -8,7 +8,7 @@ from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
 from skimage.draw import ellipsoid
 from skimage.feature import blob_log
-from img_manager import tifffile as tif
+import tifffile as tif
 
 def my_KMeans(stack, clusters=2):
     """Applies K Means algorithm to a whole stack ignoring NaNs and returns a stack of the same shape with the
