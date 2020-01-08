@@ -12,8 +12,8 @@ from matplotlib import gridspec
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LinearSegmentedColormap
 
-from img_manager import oiffile as oif
-from img_manager import tifffile as tif
+import oiffile as oif
+import tifffile as tif
 
 from foci_finder import foci_analysis as fa
 from foci_finder import tracking as tk
