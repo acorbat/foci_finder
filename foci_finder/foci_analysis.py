@@ -8,6 +8,9 @@ from skimage.measure import label, regionprops
 from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
 from skimage.draw import ellipsoid
 from skimage.feature import blob_log
+from skimage import filters
+
+from img_manager.correctors.single_chan_correctors import SMOBackgroundCorrector
 import tifffile as tif
 
 def my_KMeans(stack, clusters=2):
@@ -37,18 +40,28 @@ def LoG_normalized_filter(stack, LoG_size):
     return filtered
 
 
-def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, many_foci=40, min_area=0):
+def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
         if LoG_size is None:
             LoG_size = [2, ] * dims
 
-        filtered = LoG_normalized_filter(stack, LoG_size)  # Filter image with LoG (correlates with blobs)
-        threshold = initial_threshold
-        filtered[filtered < threshold] = np.nan
-        classif = my_KMeans(filtered)  # all pixels are handled as list
-        labeled = label(classif)  # Label segmented stack
+        LoG_size = np.asarray(LoG_size)
+        if LoG_size.ndim > 1:
+            filtered = np.zeros_like(stack)
+            for this_LoG_size in LoG_size:
+                filtered += LoG_normalized_filter(stack, this_LoG_size)
+        else:
+            filtered = LoG_normalized_filter(stack, LoG_size)  # Filter image with LoG (correlates with blobs)
+
+        # Remove background to make the segmentation easier
+        bkg_corr = SMOBackgroundCorrector()
+        bkg_corr.find_background(filtered)
+        filtered = bkg_corr.correct(filtered)
+
+        threshold = filters.threshold_yen(filtered) / 3
+        labeled = label(filtered >= threshold)  # Label segmented stack
         remove_small_objects(labeled, min_size=min_area, in_place=True)
 
         # We can check if the objects found are very big, then too many pizels where taken into account. By changing the
@@ -58,7 +71,9 @@ def find_foci(stack, LoG_size=None, initial_threshold=0.01e-2, max_area=10000, m
             areas.append(region.area)
 
         while any(area > max_area for area in areas) or len(areas) > many_foci:
+            print('Recalculating threshold')
             threshold *= 2
+            threshold = max(threshold, .002)
             filtered[filtered < threshold] = np.nan
             labeled = label(my_KMeans(filtered))
             remove_small_objects(labeled, min_size=min_area, in_place=True)
