@@ -55,35 +55,36 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
         else:
             filtered = LoG_normalized_filter(stack, LoG_size)  # Filter image with LoG (correlates with blobs)
 
-        # Remove background to make the segmentation easier
-        bkg_corr = SMOBackgroundCorrector()
-        bkg_corr.find_background(filtered)
-        filtered = bkg_corr.correct(filtered)
+        # Otsu thresholding
+        thresh = filters.threshold_otsu(filtered)
 
-        threshold = filters.threshold_yen(filtered) / 3
-        labeled = label(filtered >= threshold)  # Label segmented stack
+        labeled = label(filtered >= thresh)  # Label segmented stack
         remove_small_objects(labeled, min_size=min_area, in_place=True)
 
-        # We can check if the objects found are very big, then too many pizels where taken into account. By changing the
-        # threshold, less pixels will be taken into account and we could actually automatically find the ideal threshold
+        # We can check if the objects found are very big, then the threshold
+        # methodology could be changed
         areas = []
         for region in regionprops(labeled):
             areas.append(region.area)
 
-        while any(area > max_area for area in areas) or len(areas) > many_foci:
+        if any(area > max_area for area in areas) or len(areas) > many_foci:
             print('Recalculating threshold')
-            threshold *= 2
-            threshold = max(threshold, .002)
-            filtered[filtered < threshold] = np.nan
-            labeled = label(my_KMeans(filtered))
-            remove_small_objects(labeled, min_size=min_area, in_place=True)
-            areas = []
-            for region in regionprops(labeled):
-                areas.append(region.area)
 
+            # SMO thresholding 90 percentile
+            bkg_corr = SMOBackgroundCorrector()
+            bkg_corr.percentile = 0.9
+            bkg_corr.find_background(stack)  # I really don't know why looking
+            # for threshold in stack and applying over filtered works.
+            thresh = bkg_corr.bkg_value
+            labeled = np.asarray([this_filtered >= this_thresh for
+                                  this_filtered, this_thresh in
+                                  zip(filtered, thresh)])
+            labeled = label(labeled)  # Label segmented stack
+            remove_small_objects(labeled, min_size=min_area, in_place=True)
 
     else:
-        labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size) for this_stack in stack])
+        labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size)
+                              for this_stack in stack])
 
     return labeled
 
