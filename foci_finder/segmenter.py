@@ -9,6 +9,7 @@ from img_manager import lsm880 as lsm
 
 from . import foci_analysis as fa
 from . import tracking as tk
+from . import visualize as vs
 
 
 def scan_folder(folder):
@@ -179,7 +180,7 @@ class ibuffer(object):
         return item
 
 
-def add_thresh_to_yaml(filename, base_dir):
+def add_thresh_to_yaml(filename, base_dir, LoG_size=None):
     """Opens filename dictionary and adds the threshold."""
     with open(filename, 'r', encoding='utf-8') as fi:
         dinput = yaml.load(fi.read())
@@ -188,14 +189,15 @@ def add_thresh_to_yaml(filename, base_dir):
 
     # Load images, process them and show for thresholding
     try:
-        for ndx, (k, stack) in \
+        for ndx, (k, stack, cell_labeled) in \
                 enumerate(ibuffer(2, load_stack(dinput.keys(), base_dir))):
             print('%d/%d: %s' % (ndx, len(dinput), k))
 
             v = dinput[k]
             for cell, tp_dict in v.items():
-                chosen_t = vv.visualizer(stack)
-
+                cell_mask = cell_labeled == cell
+                tp_dict = vs.visualizer(stack, tp_dict, cell_mask,
+                                        LoG_size=LoG_size)
 
                 v[cell] = tp_dict
 
@@ -204,7 +206,7 @@ def add_thresh_to_yaml(filename, base_dir):
     except KeyboardInterrupt:
         pass
 
-    with open(filename[:filename.rfind('.')] + '_crop.yaml',
+    with open(filename[:filename.rfind('.')] + '_threshed.yaml',
               'w', encoding='utf-8') as fo:
         fo.write(yaml.dump(dout))
 

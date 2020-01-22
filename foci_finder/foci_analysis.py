@@ -40,6 +40,26 @@ def LoG_normalized_filter(stack, LoG_size):
     return filtered
 
 
+def manual_find_foci(stack, thresh, LoG_size=None, min_area=0):
+    """Receives a single 3D stack of images and returns a same size labeled
+    image with all the foci."""
+    if LoG_size is None:
+        LoG_size = [2, ] * stack.ndim
+
+    LoG_size = np.asarray(LoG_size)
+    if LoG_size.ndim > 1:
+        filtered = np.zeros_like(stack)
+        for this_LoG_size in LoG_size:
+            filtered += LoG_normalized_filter(stack, this_LoG_size)
+    else:
+        filtered = LoG_normalized_filter(stack, LoG_size)
+
+    labeled = meas.label(filtered >= thresh)  # Label segmented stack
+    morph.remove_small_objects(labeled, min_size=min_area, in_place=True)
+
+    return labeled
+
+
 def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
