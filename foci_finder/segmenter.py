@@ -74,7 +74,8 @@ def look_for_cells(img_dir, save_dir=None):
             labels.append(region.label)
 
         if len(labels) > 1:
-            tracked_df = tk.track(cell_labeled, max_dist=200)
+            tracked_df = tk.track(cell_labeled, max_dist=200,
+                                  intensity_image=stack)
             cell_labeled = tk.relabel_by_track(cell_labeled, tracked_df)
 
         if save_dir:
@@ -178,7 +179,7 @@ class ibuffer(object):
         return item
 
 
-def add_thresh_to_yaml(filename):
+def add_thresh_to_yaml(filename, base_dir):
     """Opens filename dictionary and adds the threshold."""
     with open(filename, 'r', encoding='utf-8') as fi:
         dinput = yaml.load(fi.read())
@@ -187,23 +188,16 @@ def add_thresh_to_yaml(filename):
 
     # Load images, process them and show for thresholding
     try:
-        for ndx, (k, image_or_crop) in \
-                enumerate(ibuffer(2, load_stack(dinput.keys(), dcrop))):
+        for ndx, (k, stack) in \
+                enumerate(ibuffer(2, load_stack(dinput.keys(), base_dir))):
             print('%d/%d: %s' % (ndx, len(dinput), k))
+
             v = dinput[k]
+            for cell, tp_dict in v.items():
+                chosen_t = vv.visualizer(stack)
 
-            if image_or_crop is None:
-                pass
 
-            elif isinstance(image_or_crop, int):
-                v['time_crop'] = image_or_crop
-
-            else:
-                image = image_or_crop
-                chosen_t = vv.visualizer(image)
-                print(chosen_t)
-
-                v['time_crop'] = chosen_t
+            v['time_crop'] = chosen_t
 
             dout[k] = v
 
