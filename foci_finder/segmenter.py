@@ -79,7 +79,7 @@ def look_for_cells(img_dir, save_dir=None):
             cell_labeled = tk.relabel_by_track(cell_labeled, tracked_df)
 
         if save_dir:
-            this_save_dir = this_save_dir.with_name(img_dir.stem +
+            this_save_dir = save_dir.with_name(img_dir.stem +
                                                     '_cell_%s.tif' % this_scene)
             fa.save_img(this_save_dir, cell_labeled, axes='TZYX',
                         create_dir=True, dtype='uint8')
@@ -197,7 +197,7 @@ def add_thresh_to_yaml(filename, base_dir):
                 chosen_t = vv.visualizer(stack)
 
 
-            v['time_crop'] = chosen_t
+                v[cell] = tp_dict
 
             dout[k] = v
 
