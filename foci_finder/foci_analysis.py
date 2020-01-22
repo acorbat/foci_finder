@@ -3,15 +3,15 @@ import numpy as np
 import pandas as pd
 
 from sklearn.cluster import KMeans
-from scipy.ndimage import gaussian_laplace, gaussian_filter
-from skimage.measure import label, regionprops
-from skimage.morphology import binary_opening, binary_closing, binary_dilation, remove_small_objects, disk
-from skimage.draw import ellipsoid
-from skimage.feature import blob_log
-from skimage import filters
+from scipy.ndimage import gaussian_laplace
+from scipy import ndimage as ndi
+from skimage import measure as meas, morphology as morph, draw, \
+    feature as feat, filters, util
 
 from img_manager.correctors.single_chan_correctors import SMOBackgroundCorrector
+from cellment import tracking
 import tifffile as tif
+
 
 def my_KMeans(stack, clusters=2):
     """Applies K Means algorithm to a whole stack ignoring NaNs and returns a stack of the same shape with the
@@ -58,17 +58,29 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
         # Otsu thresholding
         thresh = filters.threshold_otsu(filtered)
 
-        labeled = label(filtered >= thresh)  # Label segmented stack
-        remove_small_objects(labeled, min_size=min_area, in_place=True)
+        labeled = meas.label(filtered >= thresh)  # Label segmented stack
+        morph.remove_small_objects(labeled, min_size=min_area, in_place=True)
 
         # We can check if the objects found are very big, then the threshold
         # methodology could be changed
         areas = []
-        for region in regionprops(labeled):
+        for region in meas.regionprops(labeled):
             areas.append(region.area)
 
         if any(area > max_area for area in areas) or len(areas) > many_foci:
             print('Recalculating threshold')
+
+            # Refilter with median
+            if LoG_size.ndim > 1:
+                filtered = np.zeros_like(stack)
+                for this_LoG_size in LoG_size:
+                    median_filtered = np.asarray(
+                        [filters.median(this, selem=morph.square(3)) for this
+                         in stack])
+                    filtered += LoG_normalized_filter(median_filtered,
+                                                         this_LoG_size)
+            else:
+                filtered = LoG_normalized_filter(stack, LoG_size)
 
             # SMO thresholding 90 percentile
             bkg_corr = SMOBackgroundCorrector()
@@ -79,8 +91,8 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
             labeled = np.asarray([this_filtered >= this_thresh for
                                   this_filtered, this_thresh in
                                   zip(filtered, thresh)])
-            labeled = label(labeled)  # Label segmented stack
-            remove_small_objects(labeled, min_size=min_area, in_place=True)
+            labeled = meas.label(labeled)  # Label segmented stack
+            morph.remove_small_objects(labeled, min_size=min_area, in_place=True)
 
     else:
         labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size)
@@ -90,40 +102,76 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
 
 
 def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=None):
-    """Returns a DataFrame where each row is a labeled object and each column in cols is the regionprop to be saved."""
-    regions = regionprops(labeled, intensity_image=intensity_image)
+    """Returns a DataFrame where each row is a labeled object and each column
+    in cols is the regionprop to be saved."""
+    regions = meas.regionprops(labeled, intensity_image=intensity_image)
     this_focus = {col: [region[col] for region in regions] for col in cols}
     return pd.DataFrame.from_dict(this_focus)
 
 
-def find_cell(stack, mask, gaussian_kernel=None):
-    """Finds cytoplasm not considering pixels in mask."""
-    dims = len(stack.shape)
+def find_cell(stack, gaussian_kernel=None):
+    """Finds cytoplasm in image."""
+    dims = stack.ndim
+    stack = util.img_as_float(stack)
     if dims <= 3:
         if gaussian_kernel is None:
             if dims == 3:
-                gaussian_kernel = [4, 2, 2]
+                gaussian_kernel = [3, 5, 5]
             else:
-                gaussian_kernel = [2, ] * dims
+                gaussian_kernel = [5, ] * dims
 
-        cell_stack = stack.copy()
-        cell_stack = gaussian_filter(cell_stack, gaussian_kernel)
-        if dims == 3:
-            dil_mask = np.asarray(
-                [binary_dilation(this, selem=disk(2)) for this in mask])  # todo: this should be outside
-        else:
-            dil_mask = binary_dilation(mask, selem=disk(2))  # todo: this should be outside
-        cell_stack[dil_mask] = np.nan
+        filtered = filters.gaussian(stack, sigma=gaussian_kernel)
+        bkg_corr = SMOBackgroundCorrector()
+        bkg_corr.find_background(filtered)
+        foci_stack_corr = bkg_corr.correct(filtered)
 
-        cell_classif = my_KMeans(cell_stack)
-        cell_classif[np.isnan(cell_classif)] = 0
-        cell_classif.astype(bool)
+        thresh = filters.threshold_mean(foci_stack_corr)
+        cell_segm = foci_stack_corr >= thresh
+
+        cell_labeled = separate_objects(cell_segm)
 
     else:
-        cell_classif = np.asarray([find_cell(this_stack, this_mask, gaussian_kernel=gaussian_kernel)
-                                   for this_stack, this_mask in zip(stack, mask)])
+        cell_labeled = np.asarray([find_cell(this_stack,
+                                             gaussian_kernel=gaussian_kernel)
+                                   for this_stack in stack])
 
-    return cell_classif
+    return cell_labeled
+
+
+def separate_objects(mask, min_size=10000):
+    labels = np.asarray([meas.label(this) for this in mask])
+    distance = ndi.distance_transform_edt(mask)
+    graph = tracking.Labels_graph.from_labels_stack(labels)
+    tracking.split_nodes(labels, graph, distance, min_size, 0)
+
+    subgraphs = tracking.decompose(
+        graph)  # Decomposes in disconnected subgraphs
+    subgraphs = list(filter(lambda x: x.is_timelike_chain(),
+                            subgraphs))  # Keeps only time-like chains
+
+    # Generates new labeled mask with tracking data
+    tracked_labels = np.zeros_like(labels, dtype=np.min_scalar_type(
+        len(subgraphs) + 1))
+    for new_label, subgraph in enumerate(subgraphs, 1):
+        for node in subgraph:
+            tracked_labels[node.time][
+                labels[node.time] == node.label] = new_label
+
+    return tracked_labels
+
+
+def filter_by_area(cell_segm, area_percentage=0.8):
+    cell_labeled = meas.label(cell_segm)
+    area_dict = {region.label: region.area for region in
+                 meas.regionprops(cell_labeled)}
+
+    area_threshold = area_percentage * max(area_dict.values())
+
+    for this_label, this_area in area_dict.items():
+        if this_area <= area_threshold:
+            cell_labeled[cell_labeled == this_label] = 0
+
+    return cell_labeled
 
 
 def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closing_disk=2):
@@ -135,9 +183,11 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closin
         foci_mask = np.ma.array(foci_mask)
         mask = np.ma.array(np.ones(stack.shape), mask=(cell_mask + foci_mask))
         if dims == 3:
-            mask = np.asarray([binary_dilation(this.mask, selem=disk(2)) for this in mask])
+            mask = np.asarray([morph.binary_dilation(this.mask,
+                                                     selem=morph.disk(2))
+                               for this in mask])
         else:
-            mask = binary_dilation(mask, selem=disk(2))
+            mask = morph.binary_dilation(mask, selem=morph.disk(2))
         mito_cell_stack = stack.copy()
         mito_cell_stack[~mask] = np.nan
 
@@ -147,19 +197,31 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closin
         mito_classif[np.isnan(mito_classif)] = 0
         mito_classif = mito_classif.astype(bool)
         if dims == 3:
-            mito_classif = np.asarray([binary_closing(this, selem=disk(closing_disk)) for this in mito_classif])
-            mito_classif = np.asarray([remove_small_objects(this.astype(bool), min_size=filter_size)
+            mito_classif = np.asarray([morph.binary_closing(this,
+                                                            selem=morph.disk(closing_disk))
                                        for this in mito_classif])
-            mito_classif = np.asarray([binary_opening(this, selem=disk(opening_disk)) for this in mito_classif])
+            mito_classif = np.asarray([morph.remove_small_objects(this.astype(bool),
+                                                                  min_size=filter_size)
+                                       for this in mito_classif])
+            mito_classif = np.asarray([morph.binary_opening(this,
+                                                            morph.disk(opening_disk))
+                                       for this in mito_classif])
         else:
-            mito_classif = binary_closing(mito_classif, selem=disk(closing_disk))
-            mito_classif = remove_small_objects(mito_classif.astype(bool), min_size=filter_size)
-            mito_classif = binary_opening(mito_classif, selem=disk(opening_disk))
+            mito_classif = morph.binary_closing(mito_classif,
+                                                selem=morph.disk(closing_disk))
+            mito_classif = morph.remove_small_objects(mito_classif.astype(bool),
+                                                      min_size=filter_size)
+            mito_classif = morph.binary_opening(mito_classif,
+                                                selem=morph.disk(opening_disk))
 
     else:
-        mito_classif = np.asarray([find_mito(this_stack, this_cell_mask, this_foci_mask,
-                                             filter_size=filter_size, opening_disk=opening_disk)
-                                   for this_stack, this_cell_mask, this_foci_mask in zip(stack, cell_mask, foci_mask)])
+        mito_classif = np.asarray([find_mito(this_stack,
+                                             this_cell_mask,
+                                             this_foci_mask,
+                                             filter_size=filter_size,
+                                             opening_disk=opening_disk)
+                                   for this_stack, this_cell_mask, this_foci_mask
+                                   in zip(stack, cell_mask, foci_mask)])
 
     return mito_classif
 
@@ -167,8 +229,9 @@ def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closin
 def segment_all(foci_stack, mito_stack, subcellular=False, foci_LoG_size=None,
                 mito_filter_size=4, mito_opening_disk=0, mito_closing_disk=2,
                 many_foci=40, foci_filter_size=0):
-    """Takes foci and mitochondrial stacks and returns their segmentations. If mito_stack is None, mito_segm is None. If
-    subcellular is True then cell_segm is all ones as you should be zoomed into the citoplasm."""
+    """Takes foci and mitochondrial stacks and returns their segmentations. If
+    mito_stack is None, mito_segm is None. If subcellular is True then
+    cell_segm is all ones as you should be zoomed into the citoplasm."""
     # TODO: Add a filter for foci size
     foci_labeled = find_foci(foci_stack, LoG_size=foci_LoG_size, many_foci=many_foci, min_area=foci_filter_size)
 
@@ -189,8 +252,8 @@ def segment_all(foci_stack, mito_stack, subcellular=False, foci_LoG_size=None,
 
 
 def relabel(labeled, swap):
-    """Takes a labeled mask and a list of tuples of the swapping labels. If a label is not swapped, it will be
-    deleted."""
+    """Takes a labeled mask and a list of tuples of the swapping labels. If a
+    label is not swapped, it will be deleted."""
     out = np.zeros_like(labeled)
 
     for new, old in swap:
@@ -199,10 +262,10 @@ def relabel(labeled, swap):
     return out
 
 
-def save_img(path, stack, axes='YX', create_dir=False):
+def save_img(path, stack, axes='YX', create_dir=False, dtype='float32'):
     """Saves stack as 8 bit integer in tif format."""
     # TODO: change parameter order
-    stack = stack.astype('float32')
+    stack = stack.astype(dtype)
 
     # Fill array with new axis
     ndims = len(stack.shape)
@@ -227,7 +290,8 @@ def save_img(path, stack, axes='YX', create_dir=False):
 
 
 def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=False):
-    """Saves every stack in path plus the corresponding suffix. If mito_segm is None, it does not save it."""
+    """Saves every stack in path plus the corresponding suffix. If mito_segm is
+     None, it does not save it."""
     foci_path = path.with_name(path.stem + '_foci_segm.tiff')
     save_img(foci_path, foci_labeled, axes=axes, create_dir=create_dir)
     cell_path = path.with_name(path.stem + '_cell_segm.tiff')
@@ -238,7 +302,8 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
 
 
 def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=40):
-    """Applies skimage blob_log to the 3D stack. Considers image dimensions as TZYX."""
+    """Applies skimage blob_log to the 3D stack. Considers image dimensions as
+    TZYX."""
 
     ndims = len(foci_stack.shape)
     if ndims == 4:
@@ -247,7 +312,7 @@ def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=
         foci_stack = np.concatenate([foci_stack,
                                   np.zeros((1, ) + foci_stack.shape[1:])]
                                     )  # add zeros in case cell is close to upper or lower limit
-        blobs = blob_log(foci_stack, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma, threshold=threshold)
+        blobs = feat.blob_log(foci_stack, min_sigma=min_sigma, max_sigma=max_sigma, num_sigma=num_sigma, threshold=threshold)
         blobs = [blob for blob in blobs if blob[0] < len(foci_stack)-1]
     else:
         raise ValueError('Too many dimensions in stack.')
@@ -258,7 +323,7 @@ def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=
 def remove_big_objects(stack, max_size):
     """Removes objects bigger than max_size from labeled stack image."""
     mark_for_deletion = []
-    for region in regionprops(stack):
+    for region in meas.regionprops(stack):
         if region.area > max_size:
             mark_for_deletion.append(region.label)
 
@@ -269,8 +334,9 @@ def remove_big_objects(stack, max_size):
 
 
 def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
-    """Checks which labeled region coincide with blobs found in blobs. If foci_filter_size is given, regions bigger than
-    this are previously discarded."""
+    """Checks which labeled region coincide with blobs found in blobs. If
+    foci_filter_size is given, regions bigger than this are previously
+    discarded."""
 
     if foci_filter_size is not None:
         foci_labeled = remove_big_objects(foci_labeled, foci_filter_size)
@@ -290,14 +356,15 @@ def filter_with_blobs(foci_labeled, blobs, foci_filter_size=None):
 
 
 def generate_labeled_from_blobs(blobs, shape):
-    """Generates a labeled image with given shape and using the location of blobs and their radius."""
+    """Generates a labeled image with given shape and using the location of
+    blobs and their radius."""
     blob_labeled = np.zeros(shape)
 
     for blob in blobs:
         location = blob[:-1]
         if len(shape) == 2:
             radius = blob[-1] * np.sqrt(2)
-            focus = disk(radius)
+            focus = morph.disk(radius)
             disk_location = (int(location[0] - focus.shape[0] // 2), int(location[1] - focus.shape[1] // 2))
             corners = (disk_location[0], disk_location[0] + focus.shape[0],
                        disk_location[1], disk_location[1] + focus.shape[1])
@@ -307,7 +374,7 @@ def generate_labeled_from_blobs(blobs, shape):
 
         elif len(shape) == 3:
             radius = blob[-1] * np.sqrt(3)
-            focus = ellipsoid(radius/8, radius, radius)
+            focus = draw.ellipsoid(radius/8, radius, radius)
             ball_location = (int(location[0] - focus.shape[0] // 2),
                              int(location[1] - focus.shape[1] // 2),
                              int(location[2] - focus.shape[2] // 2))
@@ -321,4 +388,4 @@ def generate_labeled_from_blobs(blobs, shape):
         else:
             raise ValueError('Number of dimensions is not allowed, only works with 2 or 3 dimensions')
 
-    return label(blob_labeled)
+    return meas.label(blob_labeled)
