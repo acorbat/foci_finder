@@ -11,6 +11,7 @@ from foci_finder import docking as dk
 def relabel_by_track(labeled_mask, track_df):
     """Relabels according to particle column in track_df every frame of labeled_mask according to track_df."""
     out = np.zeros_like(labeled_mask)
+    track_df = track_df.reset_index()
     for frame, df in track_df.groupby('frame'):
         swap = [[df.particle[i], df.label[i]] for i in df.index]
 
