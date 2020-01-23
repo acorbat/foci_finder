@@ -24,8 +24,8 @@ def scan_folder(folder):
 
 
 def create_base_yaml(folder, output):
-    """Generates a yaml dictionary at output with all the pairs of stacks found
-    at folder."""
+    """Generates a yaml dictionary at output with all scenes and cells found
+    at each file at folder."""
     append_to_yaml(folder, output, {})
 
 
@@ -36,12 +36,12 @@ def append_to_yaml(folder, output, filename_or_dict):
     Parameters
     ----------
     folder : str
-        path to folder where file are located
+        path to folder where files are located
     output : str
         path to yaml file where dictionary is to be saved
     filename_or_dict : str or dict
-        path to yaml dictionary or dictionary to which new stack paths are to be
-        appended
+        path to yaml dictionary or dictionary to which new stack paths are to
+        be appended
     """
 
     if isinstance(filename_or_dict, str):
@@ -62,6 +62,23 @@ def append_to_yaml(folder, output, filename_or_dict):
 
 
 def look_for_cells(img_dir, save_dir=None):
+    """Looks for cells at each scene and returns a dictionary containing
+    dictionaries for each scene, each cell and each timepoint.
+
+    Parameters
+    ----------
+    img_dir : path
+        path to image file to be analyzed
+    save_dir : path, optional
+        If given, labeled stacks of cells are saved there.
+
+    Returns
+    -------
+    file_dict : dictionary
+        Dictionary containing a dictionary for each scene, which contains a
+        dictionary for each cell, and inside a dictionary for the threshold to
+        be used at each timepoint.
+    """
     img_file = lsm.LSM880(str(img_dir))
 
     file_dict = {}
@@ -231,9 +248,24 @@ def add_thresh_to_yaml(filename, base_dir, save_dir, LoG_size=None):
 
 
 def load_stack(scene_dict, filename, img_dir, segm_dir):
-    """Iterates over the given list of filenames and yields filename and either
-    the saved crop coordinates (if dcrop has them), a normalized image to
-    perform the crop or None if errors arise while getting the image."""
+    """Iterator for each scene in the dictionary, and returns the loaded stack
+    and labeled cell segmentation.
+
+    Parameters
+    ----------
+    scene_dict : dictionary
+        Dictionary for each scene
+    filename : path
+        Ending of the filepath
+    img_dir : pathlib.Path
+        Path to where all the images are saved
+    segm_dir : pathlib.Path
+        Path to where all the labeled segmentations are saved
+
+    Returns
+    -------
+    Iterator for scene, stack and labeled segmentation
+    """
     k = filename
     for scene in scene_dict.keys():
 
