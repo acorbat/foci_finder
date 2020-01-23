@@ -212,7 +212,19 @@ class ibuffer(object):
 
 
 def add_thresh_to_yaml(filename, base_dir, save_dir, LoG_size=None):
-    """Opens filename dictionary and adds the threshold."""
+    """Opens filename dictionary and adds the threshold.
+
+    Parameters
+    ----------
+    filename : path
+        path to yaml dictionary to be loaded
+    base_dir : pathlib.Path
+        Path to stack files
+    save_dir : pathlib.Path
+        Path to labeled cell segmented files
+    LoG_size : tuple, list, array; optional
+        Size or sizes to be used for Laplacian of Gaussian filters
+    """
     with open(filename, 'r', encoding='utf-8') as fi:
         dinput = yaml.load(fi.read())
 
