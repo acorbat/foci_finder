@@ -56,7 +56,8 @@ def append_to_yaml(folder, output, filename_or_dict):
         file_dict = look_for_cells(img_dir, save_dir=output.joinpath(rel_path))
         d[str(rel_path)] = file_dict
 
-        with open(output, 'w', encoding='utf-8') as fo:
+        with open(output.joinpath('file_cell_dict.yaml'),
+                  'w', encoding='utf-8') as fo:
             fo.write(yaml.dump(d))
 
 
@@ -188,7 +189,7 @@ class ibuffer(object):
         return item
 
 
-def add_thresh_to_yaml(filename, base_dir, LoG_size=None):
+def add_thresh_to_yaml(filename, base_dir, save_dir, LoG_size=None):
     """Opens filename dictionary and adds the threshold."""
     with open(filename, 'r', encoding='utf-8') as fi:
         dinput = yaml.load(fi.read())
@@ -197,17 +198,22 @@ def add_thresh_to_yaml(filename, base_dir, LoG_size=None):
 
     # Load images, process them and show for thresholding
     try:
-        for ndx, (k, stack, cell_labeled) in \
-                enumerate(ibuffer(2, load_stack(dinput.keys(), base_dir))):
+        for ndx, (k, scene_dict) in dinput.items():
             print('%d/%d: %s' % (ndx, len(dinput), k))
-
             v = dinput[k]
-            for cell, tp_dict in v.items():
-                cell_mask = cell_labeled == cell
-                tp_dict = vs.visualizer(stack, tp_dict, cell_mask,
-                                        LoG_size=LoG_size)
+            for scene, stack, cell_labeled in ibuffer(2,
+                                                      load_stack(scene_dict,
+                                                                 k,
+                                                                 base_dir,
+                                                                 save_dir)):
 
-                v[cell] = tp_dict
+                w = v[scene]
+                for cell, tp_dict in w.items():
+                    cell_mask = cell_labeled == cell
+                    tp_dict = vs.visualizer(stack, tp_dict, cell_mask,
+                                            LoG_size=LoG_size)
+
+                    w[cell] = tp_dict
 
             dout[k] = v
 
@@ -219,20 +225,19 @@ def add_thresh_to_yaml(filename, base_dir, LoG_size=None):
         fo.write(yaml.dump(dout))
 
 
-def load_stack(filenames, dcrop=None):
+def load_stack(scene_dict, filename, img_dir, segm_dir):
     """Iterates over the given list of filenames and yields filename and either
     the saved crop coordinates (if dcrop has them), a normalized image to
     perform the crop or None if errors arise while getting the image."""
-    for filename in filenames:
-        k = filename
-        if dcrop and k in dcrop and 'time_crop' in dcrop[k]:
-            yield filename, dcrop[k]['time_crop']
-        else:
-            try:
-                original = io.imread(filename)
+    k = filename
+    for scene in scene_dict.keys():
 
-                print('%.2f: %s' % (t.elapsed, filename))
-                yield filename, original
-            except:
-                print('load stack did not work')
-                yield filename, None
+        try:
+            stack = lsm.LSM880(str(img_dir.joinpath(k)))[{'S': scene}]
+            this_segm_dir = segm_dir.joinpath(k)
+            cell_labeled = tif.TiffFile(str(this_segm_dir)).asarray()
+
+            yield scene, stack, cell_labeled
+        except:
+            print('load stack did not work')
+            yield scene, None, None
