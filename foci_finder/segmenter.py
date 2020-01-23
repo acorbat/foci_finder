@@ -55,8 +55,8 @@ def append_to_yaml(folder, output, filename_or_dict):
         file_dict = look_for_cells(img_dir, save_dir=output.joinpath(rel_path))
         d[str(rel_path)] = file_dict
 
-    with open(output, 'w', encoding='utf-8') as fo:
-        fo.write(yaml.dump(d))
+        with open(output, 'w', encoding='utf-8') as fo:
+            fo.write(yaml.dump(d))
 
 
 def look_for_cells(img_dir, save_dir=None):
