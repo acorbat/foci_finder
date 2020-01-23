@@ -74,28 +74,33 @@ def look_for_cells(img_dir, save_dir=None):
 
         if save_dir and this_save_dir.exists():
             cell_labeled = tif.TiffFile(str(this_save_dir)).asarray()
+            time_length = cell_labeled.shape[0]
+            labels = []
+            for region in meas.regionprops(cell_labeled[0]):
+                labels.append(region.label)
 
         else:
             stack = img_file[{'S': this_scene, 'C': 0}]
 
             stack = stack.transpose('T', 'Z', 'Y', 'X').values
+            time_length = stack.shape[0]
             cell_labeled = fa.find_cell(stack)
 
-        labels = []
-        for region in meas.regionprops(cell_labeled[0]):
-            labels.append(region.label)
+            labels = []
+            for region in meas.regionprops(cell_labeled[0]):
+                labels.append(region.label)
 
-        if len(labels) > 1:
-            tracked_df = tk.track(cell_labeled, max_dist=200,
-                                  intensity_image=stack)
-            cell_labeled = tk.relabel_by_track(cell_labeled, tracked_df)
+            if len(labels) > 1:
+                tracked_df = tk.track(cell_labeled, max_dist=200,
+                                      intensity_image=stack)
+                cell_labeled = tk.relabel_by_track(cell_labeled, tracked_df)
 
-        if save_dir:
-            fa.save_img(this_save_dir, cell_labeled, axes='TZYX',
-                        create_dir=True, dtype='uint8')
+            if save_dir:
+                fa.save_img(this_save_dir, cell_labeled, axes='TZYX',
+                            create_dir=True, dtype='uint8')
 
         file_dict[this_scene] = {this_cell: {tp: 0.0
-                                             for tp in range(stack.shape[0])}
+                                             for tp in range(time_length)}
                                  for this_cell in labels}
 
     return file_dict
