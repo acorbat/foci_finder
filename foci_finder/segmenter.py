@@ -5,6 +5,7 @@ from threading import Thread
 
 from skimage import measure as meas
 
+import tifffile as tif
 from img_manager import lsm880 as lsm
 
 from . import foci_analysis as fa
@@ -65,10 +66,19 @@ def look_for_cells(img_dir, save_dir=None):
     file_dict = {}
     for this_scene in range(img_file.get_dim_dict()['S']):
         print('Analyzing scene %s' % this_scene)
-        stack = img_file[{'S': this_scene, 'C': 0}]
 
-        stack = stack.transpose('T', 'Z', 'Y', 'X').values
-        cell_labeled = fa.find_cell(stack)
+        if save_dir:
+            this_save_dir = save_dir.with_name(img_dir.stem +
+                                                    '_cell_%s.tif' % this_scene)
+
+        if save_dir and this_save_dir.exists():
+            cell_labeled = tif.TiffFile(str(this_save_dir)).asarray()
+
+        else:
+            stack = img_file[{'S': this_scene, 'C': 0}]
+
+            stack = stack.transpose('T', 'Z', 'Y', 'X').values
+            cell_labeled = fa.find_cell(stack)
 
         labels = []
         for region in meas.regionprops(cell_labeled[0]):
@@ -80,8 +90,6 @@ def look_for_cells(img_dir, save_dir=None):
             cell_labeled = tk.relabel_by_track(cell_labeled, tracked_df)
 
         if save_dir:
-            this_save_dir = save_dir.with_name(img_dir.stem +
-                                                    '_cell_%s.tif' % this_scene)
             fa.save_img(this_save_dir, cell_labeled, axes='TZYX',
                         create_dir=True, dtype='uint8')
 
