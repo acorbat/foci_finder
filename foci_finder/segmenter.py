@@ -3,7 +3,7 @@ import yaml
 import queue
 from threading import Thread
 
-from skimage import measure as meas
+from skimage import measure as meas, util
 
 import tifffile as tif
 from img_manager import lsm880 as lsm
@@ -228,18 +228,20 @@ def add_thresh_to_yaml(filename, base_dir, save_dir, LoG_size=None):
     with open(filename, 'r', encoding='utf-8') as fi:
         dinput = yaml.load(fi.read())
 
-    dout = {}
+    dout = dinput.copy()
 
     # Load images, process them and show for thresholding
     try:
-        for ndx, (k, scene_dict) in dinput.items():
+        for ndx, (k, scene_dict) in enumerate(dinput.items()):
             print('%d/%d: %s' % (ndx, len(dinput), k))
             v = dinput[k]
-            for scene, stack, cell_labeled in ibuffer(2,
+            for scene, stack, cell_labeled in ibuffer(1,
                                                       load_stack(scene_dict,
                                                                  k,
                                                                  base_dir,
                                                                  save_dir)):
+                if stack is None:
+                    continue
 
                 w = v[scene]
                 for cell, tp_dict in w.items():
@@ -248,7 +250,12 @@ def add_thresh_to_yaml(filename, base_dir, save_dir, LoG_size=None):
                                             LoG_size=LoG_size)
 
                     w[cell] = tp_dict
+                    dout[k][scene][cell] = tp_dict
 
+                    with open(
+                            filename[:filename.rfind('.')] + '_threshed.yaml',
+                            'w', encoding='utf-8') as fo:
+                        fo.write(yaml.dump(dout))
             dout[k] = v
 
     except KeyboardInterrupt:
@@ -281,12 +288,14 @@ def load_stack(scene_dict, filename, img_dir, segm_dir):
     k = filename
     for scene in scene_dict.keys():
 
-        try:
-            stack = lsm.LSM880(str(img_dir.joinpath(k)))[{'S': scene}]
-            this_segm_dir = segm_dir.joinpath(k)
-            cell_labeled = tif.TiffFile(str(this_segm_dir)).asarray()
+        stack_dir = img_dir.joinpath(k)
+        stack = lsm.LSM880(str(stack_dir))[{'S': scene, 'C': 0}]
+        stack = util.img_as_float(stack)
+        this_segm_dir = segm_dir.joinpath(k).with_name(stack_dir.stem +
+                                                       '_cell_%s.tif' % scene)
+        cell_labeled = tif.TiffFile(str(this_segm_dir)).asarray()
 
-            yield scene, stack, cell_labeled
-        except:
-            print('load stack did not work')
-            yield scene, None, None
+        yield scene, stack, cell_labeled
+        # except:
+        #     print('load stack did not work')
+        #     yield scene, None, None
