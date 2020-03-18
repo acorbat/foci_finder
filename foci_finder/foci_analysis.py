@@ -1,4 +1,3 @@
-import h5py
 import numpy as np
 import pandas as pd
 
@@ -7,10 +6,10 @@ from scipy.ndimage import gaussian_laplace
 from scipy import ndimage as ndi
 from skimage import measure as meas, morphology as morph, draw, \
     feature as feat, filters, util
-
-from img_manager.correctors.single_chan_correctors import SMOBackgroundCorrector
-from cellment import tracking
 import tifffile as tif
+
+from cellment import tracking
+from img_manager.correctors import SMOBackgroundCorrector, RollingBallCorrector
 
 
 def my_KMeans(stack, clusters=2):
@@ -64,16 +63,19 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
+        roll_ball = RollingBallCorrector(25)
+        processed = roll_ball.correct(stack.copy())
+
         if LoG_size is None:
             LoG_size = [2, ] * dims
 
         LoG_size = np.asarray(LoG_size)
         if LoG_size.ndim > 1:
-            filtered = np.zeros_like(stack)
+            filtered = np.zeros_like(processed)
             for this_LoG_size in LoG_size:
-                filtered += LoG_normalized_filter(stack, this_LoG_size)
+                filtered += LoG_normalized_filter(processed, this_LoG_size)
         else:
-            filtered = LoG_normalized_filter(stack, LoG_size)  # Filter image with LoG (correlates with blobs)
+            filtered = LoG_normalized_filter(processed, LoG_size)  # Filter image with LoG (correlates with blobs)
 
         # Otsu thresholding
         thresh = filters.threshold_otsu(filtered)
@@ -96,11 +98,11 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
                 for this_LoG_size in LoG_size:
                     median_filtered = np.asarray(
                         [filters.median(this, selem=morph.square(3)) for this
-                         in stack])
+                         in processed])
                     filtered += LoG_normalized_filter(median_filtered,
                                                          this_LoG_size)
             else:
-                filtered = LoG_normalized_filter(stack, LoG_size)
+                filtered = LoG_normalized_filter(processed, LoG_size)
 
             # SMO thresholding 90 percentile
             bkg_corr = SMOBackgroundCorrector()
