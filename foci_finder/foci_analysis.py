@@ -131,8 +131,9 @@ def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=N
     return pd.DataFrame.from_dict(this_focus)
 
 
-def find_cell(stack, gaussian_kernel=None):
-    """Finds cytoplasm in image."""
+def find_cell(stack, gaussian_kernel=None, min_cell_size=20000):
+    """Finds cytoplasm in image. Filters by area in min_cell_size
+    (default=20000)."""
     dims = stack.ndim
     stack = util.img_as_float(stack)
     if dims <= 3:
@@ -150,7 +151,7 @@ def find_cell(stack, gaussian_kernel=None):
         thresh = filters.threshold_mean(foci_stack_corr)
         cell_segm = foci_stack_corr >= thresh
 
-        cell_labeled = separate_objects(cell_segm)
+        cell_labeled = separate_objects(cell_segm, min_size= min_cell_size)
 
     else:
         cell_labeled = np.asarray([find_cell(this_stack,
@@ -160,7 +161,7 @@ def find_cell(stack, gaussian_kernel=None):
     return cell_labeled
 
 
-def separate_objects(mask, min_size=10000):
+def separate_objects(mask, min_size=20000):
     labels = np.asarray([meas.label(this) for this in mask])
     distance = ndi.distance_transform_edt(mask)
     graph = tracking.Labels_graph.from_labels_stack(labels)
@@ -255,7 +256,8 @@ def segment_all(foci_stack, mito_stack, subcellular=False, foci_LoG_size=None,
     mito_stack is None, mito_segm is None. If subcellular is True then
     cell_segm is all ones as you should be zoomed into the citoplasm."""
     # TODO: Add a filter for foci size
-    foci_labeled = find_foci(foci_stack, LoG_size=foci_LoG_size, many_foci=many_foci, min_area=foci_filter_size)
+    foci_labeled = find_foci(foci_stack, LoG_size=foci_LoG_size,
+                             many_foci=many_foci, min_area=foci_filter_size)
 
     if subcellular:
         cell_segm = np.ones_like(foci_stack)
