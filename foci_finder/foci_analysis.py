@@ -59,12 +59,17 @@ def manual_find_foci(stack, thresh, LoG_size=None, min_area=0):
     return labeled
 
 
-def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
+def find_foci(stack, disk_for_median=2, roll_ball_radius=25,
+              LoG_size=None,
+              max_area=10000, many_foci=200, min_area=0):
     """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
-        roll_ball = RollingBallCorrector(25)
-        processed = roll_ball.correct(stack.copy())
+
+        processed = np.asarray([filters.median(this, selem=morph.disk(
+            disk_for_median), behavior='ndimage') for this in stack])
+        roll_ball = RollingBallCorrector(roll_ball_radius)
+        processed = roll_ball.correct(processed.copy())
 
         if LoG_size is None:
             LoG_size = [2, ] * dims
@@ -78,7 +83,7 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
             filtered = LoG_normalized_filter(processed, LoG_size)  # Filter image with LoG (correlates with blobs)
 
         # Otsu thresholding
-        thresh = filters.threshold_otsu(filtered)
+        thresh = filters.threshold_otsu(filtered) / 2
 
         labeled = meas.label(filtered >= thresh)  # Label segmented stack
         morph.remove_small_objects(labeled, min_size=min_area, in_place=True)
@@ -114,7 +119,8 @@ def find_foci(stack, LoG_size=None, max_area=10000, many_foci=200, min_area=0):
                                   this_filtered, this_thresh in
                                   zip(filtered, thresh)])
             labeled = meas.label(labeled)  # Label segmented stack
-            morph.remove_small_objects(labeled, min_size=min_area, in_place=True)
+            morph.remove_small_objects(labeled, min_size=min_area,
+                                       in_place=True)
 
     else:
         labeled = np.asarray([find_foci(this_stack, LoG_size=LoG_size)
