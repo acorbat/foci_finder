@@ -206,8 +206,32 @@ def filter_by_area(cell_segm, area_percentage=0.8):
     return cell_labeled
 
 
+def find_mitochondria(mito_stack, meijering_range=(1, 6), closing_disk=3,
+                      min_size_object=10):
+    """Finds mitochondria in the stack."""
+    range_min, range_max = meijering_range
+
+    # Filter with meijering vesselness
+    processed = filters.meijering(mito_stack,
+                                  sigmas=range(range_min, range_max, 1),
+                                  black_ridges=False)
+
+    # Threshold with Otsu
+    thresh = filters.threshold_otsu(processed) / 2
+    segm_otsu = processed >= thresh
+
+    # Morpholigacl processing of resulting maskgit status
+    segm_otsu = np.asarray([morph.binary_closing(this,
+                                                 selem=morph.disk(closing_disk))
+                            for this in segm_otsu])
+    segm_otsu = morph.remove_small_objects(segm_otsu, min_size=min_size_object)
+
+    return segm_otsu
+
+
 def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closing_disk=2):
-    """Finds mitochondrias in stack in the segmented cell plus foci."""
+    """deprecated: Finds mitochondrias in stack in the segmented cell plus
+    foci."""
     dims = len(stack.shape)
     if dims <= 3:
         # Create mask of foci and cell to know where to look for mitochondria
