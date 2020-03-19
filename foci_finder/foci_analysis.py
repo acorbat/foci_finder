@@ -156,7 +156,8 @@ def find_cell(stack, gaussian_kernel=None, min_cell_size=20000):
 
         thresh = filters.threshold_mean(foci_stack_corr)
         cell_segm = foci_stack_corr >= thresh
-
+        cell_segm = morph.binary_dilation(cell_segm, selem=morph.disk(4))
+        
         cell_labeled = separate_objects(cell_segm, min_size= min_cell_size)
 
     else:
