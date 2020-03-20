@@ -137,9 +137,11 @@ def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=N
     return pd.DataFrame.from_dict(this_focus)
 
 
-def find_cell(stack, gaussian_kernel=None, min_cell_size=20000):
-    """Finds cytoplasm in image. Filters by area in min_cell_size
-    (default=20000)."""
+def find_cell(stack, gaussian_kernel=None, dilation_disk=10,
+              min_cell_size=20000):
+    """Finds cytoplasm in image and then performs a dilation of radius
+    dilation_disk (default=10). Filters by area in min_cell_size
+    (default=70000)."""
     dims = stack.ndim
     stack = util.img_as_float(stack)
     if dims <= 3:
@@ -157,10 +159,10 @@ def find_cell(stack, gaussian_kernel=None, min_cell_size=20000):
         thresh = filters.threshold_mean(foci_stack_corr)
         cell_segm = foci_stack_corr >= thresh
         cell_segm = np.asarray([morph.binary_dilation(this,
-                                                      selem=morph.disk(4))
+                                                      selem=morph.disk(dilation_disk))
                                 for this in cell_segm])
 
-        cell_labeled = separate_objects(cell_segm, min_size= min_cell_size)
+        cell_labeled = separate_objects(cell_segm, min_size=min_cell_size)
 
     else:
         cell_labeled = np.asarray([find_cell(this_stack,
