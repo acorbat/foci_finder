@@ -138,7 +138,7 @@ def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=N
 
 
 def find_cell(stack, gaussian_kernel=None, dilation_disk=10,
-              min_cell_size=20000):
+              min_cell_size=70000):
     """Finds cytoplasm in image and then performs a dilation of radius
     dilation_disk (default=10). Filters by area in min_cell_size
     (default=70000)."""
@@ -172,7 +172,7 @@ def find_cell(stack, gaussian_kernel=None, dilation_disk=10,
     return cell_labeled
 
 
-def separate_objects(mask, min_size=20000):
+def separate_objects(mask, min_size=70000):
     labels = np.asarray([meas.label(this) for this in mask])
     distance = ndi.distance_transform_edt(mask)
     graph = tracking.Labels_graph.from_labels_stack(labels)
