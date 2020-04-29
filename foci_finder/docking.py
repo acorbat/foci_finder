@@ -1,22 +1,23 @@
-import pandas as pd
-import numpy as np
 import numba as nb
+import numpy as np
+import pandas as pd
 import scipy as sp
-
 from skimage.measure import label, regionprops
 from skimage.morphology import binary_erosion, binary_dilation, disk
 
-from foci_finder import foci_analysis as fa
+from . import foci_analysis as fa
 
 
 def move_focus(focus_coord, new_position):
-    """Takes first element to new position, translating the whole set of coordinates with it."""
+    """Takes first element to new position, translating the whole set of
+    coordinates with it."""
     return focus_coord - focus_coord[0] + new_position
 
 
 @nb.njit
 def mycheck(cell, focus):
-    """Checks possible positions for the specific focus inside the cell volume. Uses numba for optimization."""
+    """Checks possible positions for the specific focus inside the cell volume.
+    Uses numba for optimization."""
     out = np.zeros_like(cell)
     M, N, O = cell.shape
     P, Q, R = focus.shape
@@ -32,7 +33,8 @@ def mycheck(cell, focus):
 
 def rando(foci_label, cell_mask):
     """
-    Takes the labeled foci stack, and iterates over each foci repositioning them inside the cell segmentation volume.
+    Takes the labeled foci stack, and iterates over each foci repositioning
+    them inside the cell segmentation volume.
 
     :param cell_mask: binary array, M, N, O
     :param foci_label: list of binary array of Mi, Mi, Oi
@@ -42,7 +44,8 @@ def rando(foci_label, cell_mask):
     free = np.copy(cell_mask).astype(int)
     for region in regionprops(foci_label):
         focus_bbox = region.bbox
-        focus_mask = foci_label[focus_bbox[0]:focus_bbox[3], focus_bbox[1]:focus_bbox[4], focus_bbox[2]:focus_bbox[5]]
+        focus_mask = foci_label[focus_bbox[0]:focus_bbox[3],
+                     focus_bbox[1]:focus_bbox[4], focus_bbox[2]:focus_bbox[5]]
         focus_mask = focus_mask > 0
         focus_mask = focus_mask.astype(int)
         P, Q, R = focus_mask.shape
@@ -59,8 +62,8 @@ def rando(foci_label, cell_mask):
 
 
 def relabel_by_area(labeled_mask, reverse=True):
-    """Takes a labeled foci images and relabels it according to volume size. If reverse=True largest foci is smallest
-    label."""
+    """Takes a labeled foci images and relabels it according to volume size. If
+    reverse=True largest foci is smallest label."""
     areas = sorted(((np.sum(labeled_mask == ndx), ndx) for ndx in np.unique(labeled_mask.flatten()) if ndx > 0),
                    reverse=reverse)
 
@@ -74,7 +77,8 @@ def relabel_by_area(labeled_mask, reverse=True):
 
 
 def relabel_by_dock(labeled_mask, df, cond, col='distance'):
-    """Takes a labeled foci images and relabels it according to whether value in col is above cond or not."""
+    """Takes a labeled foci images and relabels it according to whether value
+    in col is above cond or not."""
 
     swap = [[2, df.label[i]] if df[col][i] > cond else [1, df.label[i]] for i in df.index]
     out = fa.relabel(labeled_mask, swap)
@@ -83,8 +87,9 @@ def relabel_by_dock(labeled_mask, df, cond, col='distance'):
 
 
 def calculate_distances(foci_labeled, mito_segm):
-    """Takes a foci_labeled image and mitochondrial segmentation and evaluates distance for each foci returning a
-    Dataframe where label is foci label and distance column contains the corresponding distances."""
+    """Takes a foci_labeled image and mitochondrial segmentation and evaluates
+    distance for each foci returning a Dataframe where label is foci label and
+    distance column contains the corresponding distances."""
     ndims = len(foci_labeled.shape)
     if ndims <= 3:
         dist_dict = []
@@ -115,8 +120,9 @@ def calculate_distances(foci_labeled, mito_segm):
 
 
 def evaluate_distance(focus_mask, mito_segm):
-    """Takes a mask for a single foci and dilates in a bidimensional way until mitochondria in mito_segm is touched (or
-    is not touched anymore if it was already superposed). Algorithm stops if dilates is run 1000 times."""
+    """Takes a mask for a single foci and dilates in a bidimensional way until
+    mitochondria in mito_segm is touched (or is not touched anymore if it was
+    already superposed). Algorithm stops if dilates is run 1000 times."""
     n = 0
     if len(focus_mask.shape) == 3:
         def my_erode(focus_mask):
@@ -155,8 +161,8 @@ def evaluate_distance(focus_mask, mito_segm):
 
 
 def randomize_foci_positions(foci_df, cell_coords):
-    """(deprecated) Takes a foci DataFrame and randomizes the positions of foci into cell_coords.
-    Used to be the position randomization function."""
+    """(deprecated) Takes a foci DataFrame and randomizes the positions of foci
+    into cell_coords. Used to be the position randomization function."""
     random_foci = foci_df.copy()
     new_poss = np.random.choice(len(cell_coords), size=len(random_foci), replace=False)
     new_coords = [move_focus(foci_coord, cell_coords[new_pos]) for foci_coord, new_pos in
@@ -167,8 +173,8 @@ def randomize_foci_positions(foci_df, cell_coords):
 
 
 def reconstruct_label_from_df(df, shape, extra_stack=5):
-    """(deprecated, mught be necessary later) Takes a DataFrame and creates a labeled imaged of shape with the
-    coordinates in df.coords"""
+    """(deprecated, mught be necessary later) Takes a DataFrame and creates a
+    labeled imaged of shape with the coordinates in df.coords"""
     rec = np.zeros(shape)
     rec = np.concatenate([rec, np.zeros((extra_stack,) + rec.shape[1:])])
     for i in df.index:
@@ -177,8 +183,8 @@ def reconstruct_label_from_df(df, shape, extra_stack=5):
 
 
 def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
-    """Takes the labeled foci stack and segmented mitochondria stack and check percentage of pixel/labels
-    superposition."""
+    """Takes the labeled foci stack and segmented mitochondria stack and check
+    percentage of pixel/labels superposition."""
     if how == 'pixel':
         mito_sup = mito_segm[foci_labeled > 0]
         return np.sum(mito_sup) / len(mito_sup)
@@ -197,8 +203,9 @@ def calculate_superposition(foci_labeled, mito_segm, how='pixel'):
 
 
 def randomize_and_calculate(params):
-    """Takes an index i for iteration number, and segmentation stacks. Foci are realocated using rando function into
-    cell segm and then superposition is calculated. Index and superpositions is returned."""
+    """Takes an index i for iteration number, and segmentation stacks. Foci are
+     realocated using rando function into cell segm and then superposition is
+     calculated. Index and superpositions is returned."""
     i, foci_labeled, cell_segm, mito_segm = params
     sp.random.seed(i)
     cell_mask = np.ma.array(cell_segm)

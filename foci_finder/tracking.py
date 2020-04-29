@@ -1,15 +1,15 @@
 import pandas as pd
 import numpy as np
+from skimage.measure import regionprops
 import trackpy as tp
 
-from skimage.measure import regionprops
-
-from foci_finder import foci_analysis as fa
-from foci_finder import docking as dk
+from . import foci_analysis as fa
+from . import docking as dk
 
 
 def relabel_by_track(labeled_mask, track_df):
-    """Relabels according to particle column in track_df every frame of labeled_mask according to track_df."""
+    """Relabels according to particle column in track_df every frame of labeled
+    mask according to track_df."""
     out = np.zeros_like(labeled_mask)
     track_df = track_df.reset_index(drop=True)
     for frame, df in track_df.groupby('frame'):
@@ -20,9 +20,12 @@ def relabel_by_track(labeled_mask, track_df):
     return out
 
 
-def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None, intensity_image=None, scale=None, subtr_drift=True):
-    """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled images, saving centroid positions to be
-    used in tracking by trackpy. extra_attrs is a list of other attributes to be saved into the tracked dataframe."""
+def track(labeled_stack, max_dist=20, gap=1, extra_attrs=None,
+          intensity_image=None, scale=None, subtr_drift=True):
+    """Takes labeled_stack of time lapse, prepares a DataFrame from the labeled
+    images, saving centroid positions to be used in tracking by trackpy.
+    extra_attrs is a list of other attributes to be saved into the tracked
+    dataframe."""
     elements = []
     for t, stack in enumerate(labeled_stack):  # save each desired attribute of each label from each stack into a dict.
         for region in regionprops(stack, intensity_image=intensity_image[t]):
@@ -76,8 +79,8 @@ def add_distances(tracked, particle_labeled, mito_segm, col_name='distance'):
 
 
 def relabel_video_by_dock(labeled_stack, df, cond, col='distance'):
-    """Takes a time series of labeled stacks, its df and paints each foci in each time stack according to its docking
-    state."""
+    """Takes a time series of labeled stacks, its df and paints each foci in
+    each time stack according to its docking state."""
     new_stack = np.zeros_like(labeled_stack)
     for t, stack in enumerate(labeled_stack):
         new_stack[t] = dk.relabel_by_dock(stack, df.query('frame == ' + str(t)), cond, col=col)
@@ -127,8 +130,8 @@ def msd_fft(r):
 
 
 def msd_for_df(df, group_list=[]):
-    """Takes a DataFrame and calculates 3D or 2D MSD accordingly and returns the same DataFrame with the added msd
-    column."""
+    """Takes a DataFrame and calculates 3D or 2D MSD accordingly and returns
+    the same DataFrame with the added msd column."""
     frames = np.asarray(df.frame.values)
     if 'Z' in df.columns and all(np.isfinite(df.Z.values)):
         r = np.full((frames.max()+1, 3), np.nan)
@@ -139,7 +142,8 @@ def msd_for_df(df, group_list=[]):
 
     #msd = msd_fft(r)
     msd = msd_straight_forward(r)
-    msd = pd.DataFrame(np.asarray([np.arange(frames.max()+1), msd]).T, columns=['frame', 'msd'])
+    msd = pd.DataFrame(np.asarray([np.arange(frames.max()+1), msd]).T,
+                       columns=['frame', 'msd'])
     for col in group_list:
         msd[col] = df[col].values[0]
     msd.sort_values('frame', inplace=True)
@@ -148,5 +152,6 @@ def msd_for_df(df, group_list=[]):
 
 
 def add_msd_grouped(df, group_list):
-    """Returns msd for each frame separating according to columns listed in group_list."""
+    """Returns msd for each frame separating according to columns listed in
+    group_list."""
     return df.groupby(group_list).apply(msd_for_df, group_list=group_list)

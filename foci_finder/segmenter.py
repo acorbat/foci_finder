@@ -1,11 +1,10 @@
 import pathlib
-import yaml
 import queue
-from threading import Thread
-
 from skimage import measure as meas, util
-
+from threading import Thread
 import tifffile as tif
+import yaml
+
 from img_manager import lsm880 as lsm
 
 from . import foci_analysis as fa

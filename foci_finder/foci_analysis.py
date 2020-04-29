@@ -1,9 +1,8 @@
-import numpy as np
 import pandas as pd
-
-from sklearn.cluster import KMeans
+import numpy as np
 from scipy.ndimage import gaussian_laplace
 from scipy import ndimage as ndi
+from sklearn.cluster import KMeans
 from skimage import measure as meas, morphology as morph, draw, \
     feature as feat, filters, util
 import tifffile as tif
@@ -13,8 +12,8 @@ from img_manager.correctors import SMOBackgroundCorrector, RollingBallCorrector
 
 
 def my_KMeans(stack, clusters=2):
-    """Applies K Means algorithm to a whole stack ignoring NaNs and returns a stack of the same shape with the
-    classification"""
+    """Applies K Means algorithm to a whole stack ignoring NaNs and returns a
+    stack of the same shape with the classification"""
     vals = stack.flatten().reshape(1, -1).T
     real_inds = np.isfinite(vals)
     real_vals = vals[real_inds]
@@ -34,7 +33,8 @@ def my_KMeans(stack, clusters=2):
 
 
 def LoG_normalized_filter(stack, LoG_size):
-    """Normalizes the stack, applies a Laplacian of Gaussian filter and then thresholds it."""
+    """Normalizes the stack, applies a Laplacian of Gaussian filter and then
+    thresholds it."""
     filtered = -1 * gaussian_laplace(stack / np.max(stack), LoG_size, mode='nearest')
     return filtered
 
@@ -62,7 +62,8 @@ def manual_find_foci(stack, thresh, LoG_size=None, min_area=0):
 def find_foci(stack, disk_for_median=2, roll_ball_radius=25,
               LoG_size=None,
               max_area=10000, many_foci=200, min_area=0):
-    """Receives a single 3D stack of images and returns a same size labeled image with all the foci."""
+    """Receives a single 3D stack of images and returns a same size labeled
+    image with all the foci."""
     dims = len(stack.shape)
     if dims <= 3:
 
@@ -129,7 +130,8 @@ def find_foci(stack, disk_for_median=2, roll_ball_radius=25,
     return labeled
 
 
-def label_to_df(labeled, cols=['label', 'centroid', 'coords'], intensity_image=None):
+def label_to_df(labeled, cols=['label', 'centroid', 'coords'],
+                intensity_image=None):
     """Returns a DataFrame where each row is a labeled object and each column
     in cols is the regionprop to be saved."""
     regions = meas.regionprops(labeled, intensity_image=intensity_image)
@@ -231,7 +233,8 @@ def find_mitochondria(mito_stack, meijering_range=(1, 6), closing_disk=3,
     return segm_otsu
 
 
-def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0, closing_disk=2):
+def find_mito(stack, cell_mask, foci_mask, filter_size=4, opening_disk=0,
+              closing_disk=2):
     """deprecated: Finds mitochondrias in stack in the segmented cell plus
     foci."""
     dims = len(stack.shape)
@@ -348,7 +351,8 @@ def save_img(path, stack, axes='YX', create_dir=False, dtype='float32'):
         #     store_file["image"].attrs[key] = val
 
 
-def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=False):
+def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX',
+             create_dir=False):
     """Saves every stack in path plus the corresponding suffix. If mito_segm is
      None, it does not save it."""
     foci_path = path.with_name(path.stem + '_foci_segm.tiff')
@@ -360,7 +364,8 @@ def save_all(foci_labeled, cell_segm, mito_segm, path, axes='YX', create_dir=Fal
         save_img(mito_path, mito_segm, axes=axes, create_dir=create_dir)
 
 
-def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4, threshold=40):
+def blob_detection(foci_stack, min_sigma=7, max_sigma=9, num_sigma=4,
+                   threshold=40):
     """Applies skimage blob_log to the 3D stack. Considers image dimensions as
     TZYX."""
 

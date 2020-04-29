@@ -1,11 +1,10 @@
-import multiprocessing
-
 import pandas as pd
 import numpy as np
+import multiprocessing
 
-from foci_finder import foci_analysis as fa
-from foci_finder import docking as dk
-from foci_finder import tracking as tk
+from . import foci_analysis as fa
+from . import docking as dk
+from . import tracking as tk
 
 
 def get_x_step(oiffile):
@@ -42,7 +41,8 @@ def get_clip_bbox(oiffile):
 
 
 def my_iterator(N, foci_labeled, cell_segm, mito_segm):
-    """Defined iterator to implement multiprocessing. Yields i in range and the segmented images given."""
+    """Defined iterator to implement multiprocessing. Yields i in range and the
+     segmented images given."""
     for i in range(N):
         yield i, foci_labeled, cell_segm, mito_segm
 
@@ -61,9 +61,11 @@ def evaluate_distance(foci_labeled, mito_segm):
 
 
 def evaluate_superposition(foci_labeled, cell_segm, mito_segm, N=500, path=None, max_dock_distance=3):
-    """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
-    segmentation is saved there. Superposition is evaluated and randomization of foci position is performed to evaluate
-    correspondence with random positioning distribution. A DataFrame with calculated superpositions is returned."""
+    """Pipeline that receives foci and mitocondrial stacks, segments foci,
+    citoplasm and mitochondria. If path is given, segmentation is saved there.
+    Superposition is evaluated and randomization of foci position is performed
+    to evaluate correspondence with random positioning distribution. A
+    DataFrame with calculated superpositions is returned."""
 
     mito_segm = np.asarray([fa.binary_dilation(this, fa.disk(max_dock_distance)) for this in mito_segm])  # Dilate
     # mitochondria to see if foci are close but not superposed
@@ -103,13 +105,16 @@ def evaluate_superposition(foci_labeled, cell_segm, mito_segm, N=500, path=None,
 
 
 def count_foci(foci_labeled, foci_stack=None):
-    """Pipeline that receives foci and mitocondrial stacks, segments foci, citoplasm and mitochondria. If path is given,
-     segmentation is saved there. A DataFrame with foci found and their characterizations is returned."""
+    """Pipeline that receives foci and mitocondrial stacks, segments foci,
+    citoplasm and mitochondria. If path is given, segmentation is saved there.
+    A DataFrame with foci found and their characterizations is returned."""
     if foci_stack is not None:
-        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area', 'mean_intensity'],
+        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords',
+                                                'area', 'mean_intensity'],
                             intensity_image=foci_stack)
     else:
-        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords', 'area'])
+        df = fa.label_to_df(foci_labeled, cols=['label', 'centroid', 'coords',
+                                                'area'])
 
     return df
 
