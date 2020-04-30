@@ -10,8 +10,8 @@ setup(
     author_email='acorbat@df.uba.ar',
     description='Segmenter and analyzer for foci.',
     install_requires=['numpy', 'numba', 'pandas', 'scikit-image', 'scipy',
-                      'scikit-learn', 'tifffile', 'trackpy', 
-                      'cellment @ git+https://github.com/maurosilber/cellment.git'
+                      'scikit-learn', 'tifffile', 'trackpy',
+                      'cellment @ git+https://github.com/maurosilber/cellment.git',
                       'img_manager @ git+https://github.com/acorbat/img_manager.git',
                       'serialize @ git+https://github.com/hgrecco/serialize.git']
 )
